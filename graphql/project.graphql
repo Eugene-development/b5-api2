@@ -1,0 +1,14 @@
+type Project {
+    id: ID!
+    value: String
+    description: String
+    created_at: DateTime
+}
+
+extend type Query {
+    "Get all projects"
+    projects: [Project!]! @all
+}
+
+scalar DateTime
+    @scalar(class: "Nuwave\\Lighthouse\\Schema\\Types\\Scalars\\DateTime")
