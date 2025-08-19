@@ -2,32 +2,50 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Concerns\HasUlids;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class Project extends Model
 {
+    use HasFactory, HasUlids;
+
+    /**
+     * Indicates if the IDs are auto-incrementing.
+     *
+     * @var bool
+     */
+    public $incrementing = false;
+
+    /**
+     * The data type of the primary key ID.
+     *
+     * @var string
+     */
+    protected $keyType = 'string';
+
     protected $table = 'projects';
 
     protected $fillable = [
-        'name',
+        'value',
         'agent_id',
         'city',
         'description',
-        'contract_number',
+        'is_active',
+        'contract_name',
         'contract_date',
         'contract_amount',
-        'agent_rate',
-        'agent_rate_type',
-        'planned_completion',
-        'status',
+        'agent_percentage',
+        'planned_completion_date',
     ];
 
     protected $casts = [
         'contract_date' => 'date',
-        'planned_completion' => 'date',
+        'planned_completion_date' => 'date',
         'contract_amount' => 'decimal:2',
-        'agent_rate' => 'decimal:2',
+        'agent_percentage' => 'decimal:2',
+        'is_active' => 'boolean',
     ];
 
     /**

@@ -11,34 +11,32 @@ enum AgentRateType {
 
 type Project {
     id: ID!
-    value: String!
+    value: String
     agent_id: ID
     agent: User @belongsTo
     city: String
     description: String
-    contract_number: String
+    is_active: Boolean
+    contract_name: String
     contract_date: Date
     contract_amount: Float
-    agent_rate: Float
-    agent_rate_type: AgentRateType
-    planned_completion: Date
-    status: ProjectStatus
+    agent_percentage: Float
+    planned_completion_date: Date
     created_at: DateTime!
     updated_at: DateTime!
 }
 
 input CreateProjectInput {
     value: String!
-    agent_id: ID!
-    city: String!
+    agent_id: ID
+    city: String
     description: String
-    contract_number: String!
-    contract_date: Date!
-    contract_amount: Float!
-    agent_rate: Float!
-    agent_rate_type: AgentRateType!
-    planned_completion: Date!
-    status: ProjectStatus = ACTIVE
+    is_active: Boolean = true
+    contract_name: String
+    contract_date: Date
+    contract_amount: Float
+    agent_percentage: Float
+    planned_completion_date: Date
 }
 
 input UpdateProjectInput {
@@ -47,13 +45,12 @@ input UpdateProjectInput {
     agent_id: ID
     city: String
     description: String
-    contract_number: String
+    is_active: Boolean
+    contract_name: String
     contract_date: Date
     contract_amount: Float
-    agent_rate: Float
-    agent_rate_type: AgentRateType
-    planned_completion: Date
-    status: ProjectStatus
+    agent_percentage: Float
+    planned_completion_date: Date
 }
 
 extend type Query {
