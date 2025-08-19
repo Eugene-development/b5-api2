@@ -1,14 +1,87 @@
+enum ProjectStatus {
+    ACTIVE @enum(value: "active")
+    COMPLETED @enum(value: "completed")
+    CANCELLED @enum(value: "cancelled")
+}
+
+enum AgentRateType {
+    PERCENTAGE @enum(value: "percentage")
+    FIXED @enum(value: "fixed")
+}
+
 type Project {
     id: ID!
-    value: String
+    value: String!
+    agent_id: ID
+    agent: User @belongsTo
+    city: String
     description: String
-    created_at: DateTime
+    contract_number: String
+    contract_date: Date
+    contract_amount: Float
+    agent_rate: Float
+    agent_rate_type: AgentRateType
+    planned_completion: Date
+    status: ProjectStatus
+    created_at: DateTime!
+    updated_at: DateTime!
+}
+
+input CreateProjectInput {
+    value: String!
+    agent_id: ID!
+    city: String!
+    description: String
+    contract_number: String!
+    contract_date: Date!
+    contract_amount: Float!
+    agent_rate: Float!
+    agent_rate_type: AgentRateType!
+    planned_completion: Date!
+    status: ProjectStatus = ACTIVE
+}
+
+input UpdateProjectInput {
+    id: ID!
+    value: String
+    agent_id: ID
+    city: String
+    description: String
+    contract_number: String
+    contract_date: Date
+    contract_amount: Float
+    agent_rate: Float
+    agent_rate_type: AgentRateType
+    planned_completion: Date
+    status: ProjectStatus
 }
 
 extend type Query {
     "Get all projects"
-    projects: [Project!]! @all
+    projects: [Project!]! @paginate
+
+    "Get a single project by ID"
+    project(id: ID! @whereKey): Project @find
+
+    "Get projects by status"
+    projectsByStatus(status: ProjectStatus! @where): [Project!]! @paginate
+
+    "Get projects by agent"
+    projectsByAgent(agent_id: ID! @where): [Project!]! @paginate
+}
+
+extend type Mutation {
+    "Create a new project"
+    createProject(input: CreateProjectInput! @spread): Project! @create
+
+    "Update an existing project"
+    updateProject(input: UpdateProjectInput! @spread): Project! @update
+
+    "Delete a project"
+    deleteProject(id: ID! @whereKey): Project! @delete
 }
 
 scalar DateTime
     @scalar(class: "Nuwave\\Lighthouse\\Schema\\Types\\Scalars\\DateTime")
+
+scalar Date @scalar(class: "Nuwave\\Lighthouse\\Schema\\Types\\Scalars\\Date")
