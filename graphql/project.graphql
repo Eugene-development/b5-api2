@@ -12,7 +12,7 @@ enum AgentRateType {
 type Project {
     id: ID!
     value: String
-    agent_id: ID
+    user_id: ID
     agent: User @belongsTo
     city: String
     description: String
@@ -28,7 +28,7 @@ type Project {
 
 input CreateProjectInput {
     value: String!
-    agent_id: ID
+    user_id: ID
     city: String
     description: String
     is_active: Boolean = true
@@ -42,7 +42,7 @@ input CreateProjectInput {
 input UpdateProjectInput {
     id: ID!
     value: String
-    agent_id: ID
+    user_id: ID
     city: String
     description: String
     is_active: Boolean
@@ -64,7 +64,8 @@ extend type Query {
     projectsByStatus(status: ProjectStatus! @where): [Project!]! @paginate
 
     "Get projects by agent"
-    projectsByAgent(agent_id: ID! @where): [Project!]! @paginate
+    # projectsByAgent(user_id: ID! @where): [Project!]! @paginate
+    projectsByAgent(user_id: ID! @where): [Project!]! @all
 }
 
 extend type Mutation {
