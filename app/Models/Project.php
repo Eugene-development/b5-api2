@@ -53,6 +53,6 @@ class Project extends Model
      */
     public function agent(): BelongsTo
     {
-        return $this->belongsTo(User::class, 'agent_id');
+        return $this->belongsTo(User::class, 'user_id');
     }
 }

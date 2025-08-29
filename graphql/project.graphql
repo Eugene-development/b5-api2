@@ -12,8 +12,8 @@ enum AgentRateType {
 type Project {
     id: ID!
     value: String
-    user_id: ID
-    agent: User @belongsTo
+    agent_id: ID
+    agent: User @belongsTo(foreignKey: "user_id")
     city: String
     description: String
     is_active: Boolean
@@ -28,7 +28,7 @@ type Project {
 
 input CreateProjectInput {
     value: String!
-    user_id: ID
+    agent_id: ID
     city: String
     description: String
     is_active: Boolean = true
@@ -42,7 +42,7 @@ input CreateProjectInput {
 input UpdateProjectInput {
     id: ID!
     value: String
-    user_id: ID
+    agent_id: ID
     city: String
     description: String
     is_active: Boolean
