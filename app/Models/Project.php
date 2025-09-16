@@ -29,7 +29,7 @@ class Project extends Model
 
     protected $fillable = [
         'value',
-        'agent_id',
+        'user_id',
         'city',
         'description',
         'is_active',
@@ -53,6 +53,6 @@ class Project extends Model
      */
     public function agent(): BelongsTo
     {
-        return $this->belongsTo(User::class, 'user_id');
+        return $this->belongsTo(User::class);
     }
 }
