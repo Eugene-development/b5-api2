@@ -30,7 +30,7 @@ class Project extends Model
     protected $fillable = [
         'value',
         'user_id',
-        'city',
+        'region',
         'description',
         'is_active',
         'contract_name',

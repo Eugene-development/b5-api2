@@ -22,7 +22,7 @@ class PublicProjectController extends Controller
                 'regex:/^[0-9A-HJKMNP-TV-Z]{26}$/',
             ],
             'client_name' => ['required', 'string', 'max:255'],
-            'city' => ['nullable', 'string', 'max:255'],
+            'region' => ['nullable', 'string', 'max:255'],
             'interest' => ['nullable', 'string'],
         ]);
 
@@ -38,7 +38,7 @@ class PublicProjectController extends Controller
         $project = $user->projects()->create([
             'value' => $validated['client_name'],
             'description' => $validated['interest'] ?? null,
-            'city' => $validated['city'] ?? null,
+            'region' => $validated['region'] ?? null,
             'is_active' => true,
         ]);
 

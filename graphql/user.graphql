@@ -6,7 +6,7 @@ enum UserStatus {
 type User {
     id: ID!
     name: String
-    city: String
+    region: String
     email: String
     status: UserStatus
     created_at: DateTime

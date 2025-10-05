@@ -14,7 +14,7 @@ type Project {
     value: String
     user_id: ID
     agent: User @belongsTo(foreignKey: "user_id")
-    city: String
+    region: String
     description: String
     is_active: Boolean
     contract_name: String
@@ -29,7 +29,7 @@ type Project {
 input CreateProjectInput {
     value: String!
     user_id: ID
-    city: String
+    region: String
     description: String
     is_active: Boolean = true
     contract_name: String
@@ -43,7 +43,7 @@ input UpdateProjectInput {
     id: ID!
     value: String
     user_id: ID
-    city: String
+    region: String
     description: String
     is_active: Boolean
     contract_name: String
