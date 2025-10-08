@@ -23,7 +23,11 @@ class User extends Authenticatable
         'name',
         'email',
         'password',
-        'status',
+        'bun',
+        'is_active',
+        'region',
+        'user_id',
+        'key',
     ];
 
     /**
@@ -46,7 +50,19 @@ class User extends Authenticatable
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
+            'bun' => 'boolean',
+            'is_active' => 'boolean',
         ];
+    }
+
+    /**
+     * Get the status attribute (virtual field for backward compatibility)
+     */
+    protected function status(): \Illuminate\Database\Eloquent\Casts\Attribute
+    {
+        return \Illuminate\Database\Eloquent\Casts\Attribute::make(
+            get: fn () => $this->bun ? 'banned' : 'active',
+        );
     }
 
     /**
@@ -54,7 +70,7 @@ class User extends Authenticatable
      */
     public function ban(): bool
     {
-        return $this->update(['status' => 'banned']);
+        return $this->update(['bun' => true]);
     }
 
     /**
@@ -62,7 +78,7 @@ class User extends Authenticatable
      */
     public function unban(): bool
     {
-        return $this->update(['status' => 'active']);
+        return $this->update(['bun' => false]);
     }
 
     /**
@@ -70,7 +86,7 @@ class User extends Authenticatable
      */
     public function isBanned(): bool
     {
-        return $this->status === 'banned';
+        return $this->bun === true;
     }
 
     /**
@@ -78,7 +94,7 @@ class User extends Authenticatable
      */
     public function isActive(): bool
     {
-        return $this->status === 'active';
+        return $this->bun === false;
     }
 
     /**

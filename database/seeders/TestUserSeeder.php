@@ -19,7 +19,8 @@ class TestUserSeeder extends Seeder
             'email' => 'agent@test.com',
             'password' => bcrypt('password'),
             'key' => '01HZY8Y9G5F8M9B6W7K3NQ4Z8X',
-            'status' => 'active',
+            'bun' => false,
+            'is_active' => true,
         ]);
     }
 }
