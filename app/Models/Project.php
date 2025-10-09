@@ -5,6 +5,8 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Project extends Model
 {
@@ -28,6 +30,7 @@ class Project extends Model
 
     protected $fillable = [
         'name',
+        'description',
         'contract_number',
         'contract_date',
         'planned_completion_date',
@@ -35,7 +38,10 @@ class Project extends Model
         'agent_percentage',
         'is_active',
         'address',
+        'user_id',
     ];
+
+    protected $appends = ['value', 'contract_name', 'region'];
 
     protected $casts = [
         'contract_date' => 'date',
@@ -44,4 +50,68 @@ class Project extends Model
         'agent_percentage' => 'decimal:2',
         'is_active' => 'boolean',
     ];
+
+    /**
+     * Get the phones for the project.
+     */
+    public function phones(): HasMany
+    {
+        return $this->hasMany(ProjectPhone::class);
+    }
+
+    /**
+     * Get the agent relationship.
+     */
+    public function agent(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'user_id');
+    }
+
+    /**
+     * Accessor for 'value' field (maps to 'name').
+     */
+    public function getValueAttribute()
+    {
+        return $this->attributes['name'] ?? null;
+    }
+
+    /**
+     * Mutator for 'value' field (maps to 'name').
+     */
+    public function setValueAttribute($value)
+    {
+        $this->attributes['name'] = $value;
+    }
+
+    /**
+     * Accessor for 'contract_name' field (maps to 'contract_number').
+     */
+    public function getContractNameAttribute()
+    {
+        return $this->attributes['contract_number'] ?? null;
+    }
+
+    /**
+     * Mutator for 'contract_name' field (maps to 'contract_number').
+     */
+    public function setContractNameAttribute($value)
+    {
+        $this->attributes['contract_number'] = $value;
+    }
+
+    /**
+     * Accessor for 'region' field (maps to address for backward compatibility).
+     */
+    public function getRegionAttribute()
+    {
+        return $this->attributes['address'] ?? null;
+    }
+
+    /**
+     * Mutator for 'region' field (maps to address for backward compatibility).
+     */
+    public function setRegionAttribute($value)
+    {
+        $this->attributes['address'] = $value;
+    }
 }

@@ -3,8 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Models\Project;
+use App\Models\ProjectPhone;
 use App\Models\User;
-use App\Models\UserPhone;
 use App\Models\Comment;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
@@ -63,35 +63,27 @@ class PublicProjectController extends Controller
         DB::beginTransaction();
 
         try {
-            // Create client user
-            $client = User::create([
-                'name' => $validated['client_name'],
-                'email' => 'client_' . time() . '_' . uniqid() . '@temp.local',
-                'password' => bcrypt(uniqid()),
-                'key' => (string) Str::ulid(),
-                'is_active' => true,
-            ]);
-
-            // Create phone record for client
-            UserPhone::create([
-                'user_id' => $client->id,
-                'value' => $phoneDigits,
-                'is_primary' => true,
-            ]);
-
             // Generate unique contract number
             do {
                 $contractNumber = 'LEAD-' . strtoupper(substr(uniqid(), -8));
             } while (Project::where('contract_number', $contractNumber)->exists());
 
-            // Create project with client name
+            // Create project with client name and agent ID
             $project = Project::create([
                 'name' => $validated['client_name'],
+                'user_id' => $agent->id,
                 'contract_number' => $contractNumber,
-                'contract_date' => now()->toDateString(),
                 'contract_amount' => 0,
                 'is_active' => true,
                 'address' => $validated['address'],
+            ]);
+
+            // Create phone record for project
+            ProjectPhone::create([
+                'project_id' => $project->id,
+                'value' => $phoneDigits,
+                'contact_person' => $validated['client_name'],
+                'is_primary' => true,
             ]);
 
             // Create comment if provided
