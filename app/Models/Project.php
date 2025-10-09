@@ -5,7 +5,6 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class Project extends Model
 {
@@ -28,16 +27,14 @@ class Project extends Model
     protected $table = 'projects';
 
     protected $fillable = [
-        'value',
-        'user_id',
-        'region',
-        'description',
-        'is_active',
-        'contract_name',
+        'name',
+        'contract_number',
         'contract_date',
+        'planned_completion_date',
         'contract_amount',
         'agent_percentage',
-        'planned_completion_date',
+        'is_active',
+        'region',
     ];
 
     protected $casts = [
@@ -47,12 +44,4 @@ class Project extends Model
         'agent_percentage' => 'decimal:2',
         'is_active' => 'boolean',
     ];
-
-    /**
-     * Get the agent associated with the project.
-     */
-    public function agent(): BelongsTo
-    {
-        return $this->belongsTo(User::class, 'user_id');
-    }
 }
