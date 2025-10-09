@@ -4,8 +4,12 @@ namespace App\Http\Controllers;
 
 use App\Models\Project;
 use App\Models\User;
+use App\Models\UserPhone;
+use App\Models\Comment;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 
 class PublicProjectController extends Controller
@@ -39,9 +43,9 @@ class PublicProjectController extends Controller
             'comment' => ['nullable', 'string'],
         ]);
 
-        $user = User::where('key', $validated['secret_key'])->first();
+        $agent = User::where('key', $validated['secret_key'])->first();
 
-        if (!$user) {
+        if (!$agent) {
             return response()->json([
                 'success' => false,
                 'message' => 'Пользователь с таким ключом не найден.'
@@ -56,34 +60,78 @@ class PublicProjectController extends Controller
             $phoneDigits = '7' . $phoneDigits;
         }
 
-        // Generate unique contract number
-        do {
-            $contractNumber = 'LEAD-' . strtoupper(substr(uniqid(), -8));
-        } while (Project::where('contract_number', $contractNumber)->exists());
+        DB::beginTransaction();
 
-        // Build comment with all client data
-        $commentParts = [];
-        $commentParts[] = "Телефон: {$phoneDigits}";
-        if (!empty($validated['address'])) {
-            $commentParts[] = "Адрес объекта: {$validated['address']}";
+        try {
+            // Create client user
+            $client = User::create([
+                'name' => $validated['client_name'],
+                'email' => 'client_' . time() . '_' . uniqid() . '@temp.local',
+                'password' => bcrypt(uniqid()),
+                'key' => (string) Str::ulid(),
+                'is_active' => true,
+            ]);
+
+            // Create phone record for client
+            UserPhone::create([
+                'user_id' => $client->id,
+                'value' => $phoneDigits,
+                'is_primary' => true,
+            ]);
+
+            // Generate unique contract number
+            do {
+                $contractNumber = 'LEAD-' . strtoupper(substr(uniqid(), -8));
+            } while (Project::where('contract_number', $contractNumber)->exists());
+
+            // Create project with client name
+            $project = Project::create([
+                'name' => $validated['client_name'],
+                'contract_number' => $contractNumber,
+                'contract_date' => now()->toDateString(),
+                'contract_amount' => 0,
+                'is_active' => true,
+                'address' => $validated['address'],
+            ]);
+
+            // Create comment if provided
+            if (!empty($validated['comment'])) {
+                $comment = Comment::create([
+                    'value' => $validated['comment'],
+                    'author_id' => $agent->id,
+                    'author_name' => $agent->name,
+                    'is_active' => true,
+                    'is_approved' => true,
+                    'approved_at' => now(),
+                ]);
+
+                // Link comment to project via commentables
+                DB::table('commentables')->insert([
+                    'comment_id' => $comment->id,
+                    'commentable_id' => $project->id,
+                    'commentable_type' => 'App\\Models\\Project',
+                    'sort_order' => 0,
+                    'is_pinned' => false,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]);
+            }
+
+            DB::commit();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Заявка успешно отправлена',
+                'project' => $project,
+            ], 201);
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            
+            return response()->json([
+                'success' => false,
+                'message' => 'Ошибка при создании заявки: ' . $e->getMessage(),
+            ], 500);
         }
-        if (!empty($validated['comment'])) {
-            $commentParts[] = "Комментарий: {$validated['comment']}";
-        }
-        $fullComment = implode("\n", $commentParts);
-
-        $project = Project::create([
-            'name' => $validated['client_name'] . ' - ' . $fullComment,
-            'contract_number' => $contractNumber,
-            'contract_date' => now()->toDateString(),
-            'contract_amount' => 0,
-            'is_active' => true,
-        ]);
-
-        return response()->json([
-            'success' => true,
-            'message' => 'Заявка успешно отправлена',
-            'project' => $project,
-        ], 201);
     }
 }

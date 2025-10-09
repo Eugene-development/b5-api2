@@ -34,7 +34,7 @@ class Project extends Model
         'contract_amount',
         'agent_percentage',
         'is_active',
-        'region',
+        'address',
     ];
 
     protected $casts = [
