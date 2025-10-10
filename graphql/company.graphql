@@ -1,0 +1,92 @@
+type Company {
+    id: ID!
+    name: String!
+    legal_name: String!
+    inn: String!
+    bun: Boolean!
+    is_active: Boolean!
+    region: String
+    created_at: DateTime!
+    updated_at: DateTime!
+    phones: [CompanyPhone!]! @hasMany
+    emails: [CompanyEmail!]! @hasMany
+}
+
+type CompanyPhone {
+    id: ID!
+    company_id: ID!
+    value: String!
+    contact_person: String
+    is_primary: Boolean!
+    created_at: DateTime!
+    updated_at: DateTime!
+}
+
+type CompanyEmail {
+    id: ID!
+    company_id: ID!
+    value: String!
+    contact_person: String
+    is_primary: Boolean!
+    created_at: DateTime!
+    updated_at: DateTime!
+}
+
+input CreateCompanyInput {
+    name: String!
+    legal_name: String!
+    inn: String!
+    region: String
+    bun: Boolean = false
+    is_active: Boolean = true
+}
+
+input CreateCompanyPhoneInput {
+    value: String!
+    contact_person: String
+    is_primary: Boolean = false
+}
+
+input CreateCompanyEmailInput {
+    value: String!
+    contact_person: String
+    is_primary: Boolean = false
+}
+
+input UpdateCompanyInput {
+    id: ID!
+    name: String
+    legal_name: String
+    inn: String
+    region: String
+    bun: Boolean
+    is_active: Boolean
+}
+
+extend type Query {
+    "Get all companies"
+    companies: [Company!]! @paginate
+
+    "Get a single company by ID"
+    company(id: ID! @whereKey): Company @find
+
+    "Get companies by region"
+    companiesByRegion(region: String! @where): [Company!]! @paginate
+}
+
+extend type Mutation {
+    "Create a new company"
+    createCompany(input: CreateCompanyInput! @spread): Company! @create
+
+    "Update an existing company"
+    updateCompany(input: UpdateCompanyInput! @spread): Company! @update
+
+    "Delete a company"
+    deleteCompany(id: ID! @whereKey): Company! @delete
+
+    "Create a company phone"
+    createCompanyPhone(company_id: ID!, input: CreateCompanyPhoneInput! @spread): CompanyPhone! @create
+
+    "Create a company email"
+    createCompanyEmail(company_id: ID!, input: CreateCompanyEmailInput! @spread): CompanyEmail! @create
+}
