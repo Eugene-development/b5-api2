@@ -42,12 +42,14 @@ input CreateCompanyInput {
 }
 
 input CreateCompanyPhoneInput {
+    company_id: ID!
     value: String!
     contact_person: String
     is_primary: Boolean = false
 }
 
 input CreateCompanyEmailInput {
+    company_id: ID!
     value: String!
     contact_person: String
     is_primary: Boolean = false
@@ -76,17 +78,17 @@ extend type Query {
 
 extend type Mutation {
     "Create a new company"
-    createCompany(input: CreateCompanyInput! @spread): Company! @create
+    createCompany(input: CreateCompanyInput! @spread): Company! @create(model: "App\\Models\\Company")
 
     "Update an existing company"
-    updateCompany(input: UpdateCompanyInput! @spread): Company! @update
+    updateCompany(input: UpdateCompanyInput! @spread): Company! @update(model: "App\\Models\\Company")
 
     "Delete a company"
-    deleteCompany(id: ID! @whereKey): Company! @delete
+    deleteCompany(id: ID! @whereKey): Company! @delete(model: "App\\Models\\Company")
 
     "Create a company phone"
-    createCompanyPhone(company_id: ID!, input: CreateCompanyPhoneInput! @spread): CompanyPhone! @create
+    createCompanyPhone(input: CreateCompanyPhoneInput! @spread): CompanyPhone! @create(model: "App\\Models\\CompanyPhone")
 
     "Create a company email"
-    createCompanyEmail(company_id: ID!, input: CreateCompanyEmailInput! @spread): CompanyEmail! @create
+    createCompanyEmail(input: CreateCompanyEmailInput! @spread): CompanyEmail! @create(model: "App\\Models\\CompanyEmail")
 }
