@@ -22,6 +22,17 @@ type Project {
     contract_amount: Float
     agent_percentage: Float
     planned_completion_date: Date
+    phones: [ProjectPhone!] @hasMany
+    created_at: DateTime!
+    updated_at: DateTime!
+}
+
+type ProjectPhone {
+    id: ID!
+    project_id: ID!
+    value: String!
+    contact_person: String
+    is_primary: Boolean
     created_at: DateTime!
     updated_at: DateTime!
 }

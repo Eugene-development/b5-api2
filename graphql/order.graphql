@@ -1,0 +1,120 @@
+type Order {
+    id: ID!
+    value: String!
+    company_id: ID!
+    project_id: ID!
+    order_number: String!
+    delivery_date: Date
+    actual_delivery_date: Date
+    is_active: Boolean!
+    is_urgent: Boolean!
+    created_at: DateTime!
+    updated_at: DateTime!
+    company: Company! @belongsTo
+    project: Project! @belongsTo
+    positions: [OrderPosition!]! @hasMany
+}
+
+type OrderPosition {
+    id: ID!
+    order_id: ID!
+    value: String!
+    article: String!
+    price: Float!
+    count: Int!
+    total_price: Float!
+    supplier: String
+    expected_delivery_date: Date
+    actual_delivery_date: Date
+    is_active: Boolean!
+    is_urgent: Boolean!
+    created_at: DateTime!
+    updated_at: DateTime!
+    order: Order! @belongsTo
+}
+
+input CreateOrderInput {
+    value: String!
+    company_id: ID!
+    project_id: ID!
+    order_number: String
+    delivery_date: Date
+    actual_delivery_date: Date
+    is_active: Boolean = true
+    is_urgent: Boolean = false
+    positions: [CreateOrderPositionInput!]!
+}
+
+input CreateOrderPositionInput {
+    value: String!
+    article: String!
+    price: Float!
+    count: Int!
+    supplier: String
+    expected_delivery_date: Date
+    actual_delivery_date: Date
+    is_active: Boolean = true
+    is_urgent: Boolean = false
+}
+
+input UpdateOrderInput {
+    id: ID!
+    value: String
+    company_id: ID
+    project_id: ID
+    order_number: String
+    delivery_date: Date
+    actual_delivery_date: Date
+    is_active: Boolean
+    is_urgent: Boolean
+}
+
+input UpdateOrderPositionInput {
+    id: ID!
+    value: String
+    article: String
+    price: Float
+    count: Int
+    supplier: String
+    expected_delivery_date: Date
+    actual_delivery_date: Date
+    is_active: Boolean
+    is_urgent: Boolean
+}
+
+extend type Query {
+    "Get all orders"
+    orders: [Order!]! @paginate
+
+    "Get a single order by ID"
+    order(id: ID! @whereKey): Order @find
+
+    "Get orders by company"
+    ordersByCompany(company_id: ID! @where): [Order!]! @paginate
+
+    "Get orders by project"
+    ordersByProject(project_id: ID! @where): [Order!]! @paginate
+
+    "Get urgent orders"
+    urgentOrders(is_urgent: Boolean! @where): [Order!]! @paginate
+
+    "Get active orders"
+    activeOrders(is_active: Boolean! @where): [Order!]! @paginate
+}
+
+extend type Mutation {
+    "Create a new order with positions"
+    createOrder(input: CreateOrderInput!): Order! @field(resolver: "App\\GraphQL\\Mutations\\CreateOrder")
+
+    "Update an existing order"
+    updateOrder(input: UpdateOrderInput! @spread): Order! @update(model: "App\\Models\\Order")
+
+    "Delete an order"
+    deleteOrder(id: ID! @whereKey): Order! @delete(model: "App\\Models\\Order")
+
+    "Update an order position"
+    updateOrderPosition(input: UpdateOrderPositionInput! @spread): OrderPosition! @update(model: "App\\Models\\OrderPosition")
+
+    "Delete an order position"
+    deleteOrderPosition(id: ID! @whereKey): OrderPosition! @delete(model: "App\\Models\\OrderPosition")
+}
