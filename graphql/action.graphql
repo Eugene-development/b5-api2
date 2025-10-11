@@ -1,0 +1,53 @@
+type Action {
+    id: ID!
+    name: String!
+    description: String!
+    start: Date
+    end: Date
+    company_id: ID!
+    is_active: Boolean!
+    created_at: DateTime!
+    updated_at: DateTime!
+    company: Company @belongsTo
+}
+
+input CreateActionInput {
+    name: String!
+    description: String!
+    start: Date
+    end: Date
+    company_id: ID!
+    is_active: Boolean = false
+}
+
+input UpdateActionInput {
+    id: ID!
+    name: String
+    description: String
+    start: Date
+    end: Date
+    company_id: ID
+    is_active: Boolean
+}
+
+extend type Query {
+    "Get all actions"
+    actions: [Action!]! @paginate
+
+    "Get a single action by ID"
+    action(id: ID! @whereKey): Action @find
+}
+
+extend type Mutation {
+    "Create a new action"
+    createAction(input: CreateActionInput! @spread): Action!
+        @create(model: "App\\Models\\Action")
+
+    "Update an existing action"
+    updateAction(input: UpdateActionInput! @spread): Action!
+        @update(model: "App\\Models\\Action")
+
+    "Delete an action"
+    deleteAction(id: ID! @whereKey): Action!
+        @delete(model: "App\\Models\\Action")
+}
