@@ -102,6 +102,19 @@ extend type Query {
     activeOrders(is_active: Boolean! @where): [Order!]! @paginate
 }
 
+input CreateSingleOrderPositionInput {
+    order_id: ID!
+    value: String!
+    article: String!
+    price: Float!
+    count: Int!
+    supplier: String
+    expected_delivery_date: Date
+    actual_delivery_date: Date
+    is_active: Boolean = true
+    is_urgent: Boolean = false
+}
+
 extend type Mutation {
     "Create a new order with positions"
     createOrder(input: CreateOrderInput!): Order! @field(resolver: "App\\GraphQL\\Mutations\\CreateOrder")
@@ -111,6 +124,9 @@ extend type Mutation {
 
     "Delete an order"
     deleteOrder(id: ID! @whereKey): Order! @delete(model: "App\\Models\\Order")
+
+    "Create a new order position"
+    createOrderPosition(input: CreateSingleOrderPositionInput! @spread): OrderPosition! @create(model: "App\\Models\\OrderPosition")
 
     "Update an order position"
     updateOrderPosition(input: UpdateOrderPositionInput! @spread): OrderPosition! @update(model: "App\\Models\\OrderPosition")
