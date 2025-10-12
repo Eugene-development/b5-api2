@@ -6,10 +6,26 @@ type Company {
     bun: Boolean!
     is_active: Boolean!
     region: String
+    status_id: ID
+    status: CompanyStatus @belongsTo
     created_at: DateTime!
     updated_at: DateTime!
     phones: [CompanyPhone!]! @hasMany
     emails: [CompanyEmail!]! @hasMany
+}
+
+type CompanyStatus {
+    id: ID!
+    value: String!
+    slug: String!
+    description: String
+    color: String
+    icon: String
+    sort_order: Int!
+    is_default: Boolean!
+    is_active: Boolean!
+    created_at: DateTime!
+    updated_at: DateTime!
 }
 
 type CompanyPhone {
@@ -63,6 +79,7 @@ input UpdateCompanyInput {
     region: String
     bun: Boolean
     is_active: Boolean
+    status_id: ID
 }
 
 extend type Query {
@@ -74,6 +91,12 @@ extend type Query {
 
     "Get companies by region"
     companiesByRegion(region: String! @where): [Company!]! @paginate
+
+    "Get all company statuses"
+    companyStatuses: [CompanyStatus!]! @all(model: "App\\Models\\CompanyStatus")
+
+    "Get active company statuses"
+    activeCompanyStatuses: [CompanyStatus!]! @all(model: "App\\Models\\CompanyStatus", scopes: ["active"])
 }
 
 extend type Mutation {

@@ -6,9 +6,9 @@ use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Builder;
 
-class Company extends Model
+class UserStatus extends Model
 {
     use HasFactory, HasUlids;
 
@@ -17,7 +17,7 @@ class Company extends Model
      *
      * @var string
      */
-    protected $table = 'companies';
+    protected $table = 'user_statuses';
 
     /**
      * The attributes that are mass assignable.
@@ -25,13 +25,14 @@ class Company extends Model
      * @var array<int, string>
      */
     protected $fillable = [
-        'name',
-        'legal_name',
-        'inn',
-        'bun',
+        'value',
+        'slug',
+        'description',
+        'color',
+        'icon',
+        'sort_order',
+        'is_default',
         'is_active',
-        'region',
-        'status_id',
     ];
 
     /**
@@ -40,33 +41,34 @@ class Company extends Model
      * @var array<string, string>
      */
     protected $casts = [
-        'bun' => 'boolean',
+        'is_default' => 'boolean',
         'is_active' => 'boolean',
+        'sort_order' => 'integer',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
     ];
 
     /**
-     * Get the status of the company.
+     * Get the users with this status.
      */
-    public function status(): BelongsTo
+    public function users(): HasMany
     {
-        return $this->belongsTo(CompanyStatus::class, 'status_id');
+        return $this->hasMany(User::class, 'status_id');
     }
 
     /**
-     * Get the phones for the company.
+     * Scope a query to only include active statuses.
      */
-    public function phones(): HasMany
+    public function scopeActive(Builder $query): Builder
     {
-        return $this->hasMany(CompanyPhone::class);
+        return $query->where('is_active', true)->orderBy('sort_order');
     }
 
     /**
-     * Get the emails for the company.
+     * Scope a query to get the default status.
      */
-    public function emails(): HasMany
+    public function scopeDefault(Builder $query): Builder
     {
-        return $this->hasMany(CompanyEmail::class);
+        return $query->where('is_default', true);
     }
 }

@@ -27,6 +27,8 @@ class User extends Authenticatable
         'region',
         'user_id',
         'key',
+        'company_id',
+        'status_id',
     ];
 
     /**
@@ -55,9 +57,10 @@ class User extends Authenticatable
     }
 
     /**
-     * Get the status attribute (virtual field for backward compatibility)
+     * Get the legacy status attribute (virtual field for backward compatibility)
+     * Returns 'active' or 'banned' based on the bun field
      */
-    protected function status(): \Illuminate\Database\Eloquent\Casts\Attribute
+    protected function statusLegacy(): \Illuminate\Database\Eloquent\Casts\Attribute
     {
         return \Illuminate\Database\Eloquent\Casts\Attribute::make(
             get: fn () => $this->bun ? 'banned' : 'active',
@@ -94,5 +97,21 @@ class User extends Authenticatable
     public function isActive(): bool
     {
         return $this->bun === false;
+    }
+
+    /**
+     * Get the company that the user belongs to.
+     */
+    public function company(): \Illuminate\Database\Eloquent\Relations\BelongsTo
+    {
+        return $this->belongsTo(Company::class, 'company_id');
+    }
+
+    /**
+     * Get the status that the user belongs to.
+     */
+    public function status(): \Illuminate\Database\Eloquent\Relations\BelongsTo
+    {
+        return $this->belongsTo(UserStatus::class, 'status_id');
     }
 }
