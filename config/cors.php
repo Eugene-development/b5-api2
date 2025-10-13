@@ -27,7 +27,8 @@ return [
         'https://bonus5.ru',
         'https://admin.bonus.band',
         'https://bonus.band',
-        'https://rubonus.info'
+        'https://rubonus.info',
+        'https://mebelmobile.ru'
     ]),
     'allowed_origins_patterns' => [],
 
