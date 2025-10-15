@@ -4,8 +4,11 @@ namespace App\Http\Controllers;
 
 use App\Models\Project;
 use App\Models\ProjectPhone;
+use App\Models\ProjectStatus;
 use App\Models\User;
 use App\Models\Comment;
+use App\Models\Client;
+use App\Models\ClientPhone;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
@@ -26,10 +29,16 @@ class PublicProjectController extends Controller
                 'size:26',
                 'regex:/^[0-9A-HJKMNP-TV-Z]{26}$/',
             ],
+            'client_id' => [
+                'required',
+                'string',
+                'size:26',
+                'regex:/^[0-9A-HJKMNP-TV-Z]{26}$/',
+            ],
             'client_name' => ['required', 'string', 'max:255'],
             'phone' => [
-                'required', 
-                'string', 
+                'required',
+                'string',
                 'max:255',
                 'regex:/^[\d\s\(\)\+\-]+$/',
                 function ($attribute, $value, $fail) {
@@ -63,6 +72,24 @@ class PublicProjectController extends Controller
         DB::beginTransaction();
 
         try {
+            // Create or update client
+            $client = Client::updateOrCreate(
+                ['id' => $validated['client_id']],
+                ['name' => $validated['client_name']]
+            );
+
+            // Create or update client phone
+            ClientPhone::updateOrCreate(
+                [
+                    'client_id' => $client->id,
+                    'value' => $phoneDigits,
+                ],
+                ['is_primary' => true]
+            );
+
+            // Get default project status
+            $defaultStatus = ProjectStatus::getDefault();
+
             // Generate unique contract number
             do {
                 $contractNumber = 'LEAD-' . strtoupper(substr(uniqid(), -8));
@@ -72,6 +99,7 @@ class PublicProjectController extends Controller
             $project = Project::create([
                 'name' => $validated['client_name'],
                 'user_id' => $agent->id,
+                'status_id' => $defaultStatus?->id,
                 'contract_number' => $contractNumber,
                 'contract_amount' => 0,
                 'is_active' => true,
@@ -119,7 +147,7 @@ class PublicProjectController extends Controller
 
         } catch (\Exception $e) {
             DB::rollBack();
-            
+
             return response()->json([
                 'success' => false,
                 'message' => 'Ошибка при создании заявки: ' . $e->getMessage(),

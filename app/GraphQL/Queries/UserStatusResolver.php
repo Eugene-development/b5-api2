@@ -10,6 +10,6 @@ final readonly class UserStatusResolver
 {
     public function resolve(User $user): string
     {
-        return $user->bun ? 'banned' : 'active';
+        return $user->ban ? 'banned' : 'active';
     }
 }

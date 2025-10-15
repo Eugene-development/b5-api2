@@ -28,7 +28,7 @@ class Company extends Model
         'name',
         'legal_name',
         'inn',
-        'bun',
+        'ban',
         'is_active',
         'region',
         'status_id',
@@ -40,7 +40,7 @@ class Company extends Model
      * @var array<string, string>
      */
     protected $casts = [
-        'bun' => 'boolean',
+        'ban' => 'boolean',
         'is_active' => 'boolean',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',

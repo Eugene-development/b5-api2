@@ -81,7 +81,7 @@ extend type Query {
 
 extend type Mutation {
     "Create a new project"
-    createProject(input: CreateProjectInput! @spread): Project! @create
+    createProject(input: CreateProjectInput! @spread): Project!
 
     "Update an existing project"
     updateProject(input: UpdateProjectInput! @spread): Project! @update

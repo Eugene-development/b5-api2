@@ -3,7 +3,7 @@ type Company {
     name: String!
     legal_name: String!
     inn: String!
-    bun: Boolean!
+    ban: Boolean!
     is_active: Boolean!
     region: String
     status_id: ID
@@ -53,7 +53,7 @@ input CreateCompanyInput {
     legal_name: String!
     inn: String!
     region: String
-    bun: Boolean = false
+    ban: Boolean = false
     is_active: Boolean = true
 }
 
@@ -77,7 +77,7 @@ input UpdateCompanyInput {
     legal_name: String
     inn: String
     region: String
-    bun: Boolean
+    ban: Boolean
     is_active: Boolean
     status_id: ID
 }

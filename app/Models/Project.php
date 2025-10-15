@@ -39,6 +39,7 @@ class Project extends Model
         'is_active',
         'address',
         'user_id',
+        'status_id',
     ];
 
     protected $appends = ['value', 'contract_name', 'region'];
@@ -65,6 +66,14 @@ class Project extends Model
     public function agent(): BelongsTo
     {
         return $this->belongsTo(User::class, 'user_id');
+    }
+
+    /**
+     * Get the status relationship.
+     */
+    public function status(): BelongsTo
+    {
+        return $this->belongsTo(ProjectStatus::class, 'status_id');
     }
 
     /**

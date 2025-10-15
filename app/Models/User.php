@@ -22,7 +22,7 @@ class User extends Authenticatable
         'name',
         'email',
         'password',
-        'bun',
+        'ban',
         'is_active',
         'region',
         'user_id',
@@ -51,19 +51,19 @@ class User extends Authenticatable
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
-            'bun' => 'boolean',
+            'ban' => 'boolean',
             'is_active' => 'boolean',
         ];
     }
 
     /**
      * Get the legacy status attribute (virtual field for backward compatibility)
-     * Returns 'active' or 'banned' based on the bun field
+     * Returns 'active' or 'banned' based on the ban field
      */
     protected function statusLegacy(): \Illuminate\Database\Eloquent\Casts\Attribute
     {
         return \Illuminate\Database\Eloquent\Casts\Attribute::make(
-            get: fn () => $this->bun ? 'banned' : 'active',
+            get: fn () => $this->ban ? 'banned' : 'active',
         );
     }
 
@@ -72,7 +72,7 @@ class User extends Authenticatable
      */
     public function ban(): bool
     {
-        return $this->update(['bun' => true]);
+        return $this->update(['ban' => true]);
     }
 
     /**
@@ -80,7 +80,7 @@ class User extends Authenticatable
      */
     public function unban(): bool
     {
-        return $this->update(['bun' => false]);
+        return $this->update(['ban' => false]);
     }
 
     /**
@@ -88,7 +88,7 @@ class User extends Authenticatable
      */
     public function isBanned(): bool
     {
-        return $this->bun === true;
+        return $this->ban === true;
     }
 
     /**
@@ -96,7 +96,7 @@ class User extends Authenticatable
      */
     public function isActive(): bool
     {
-        return $this->bun === false;
+        return $this->ban === false;
     }
 
     /**
@@ -113,5 +113,13 @@ class User extends Authenticatable
     public function status(): \Illuminate\Database\Eloquent\Relations\BelongsTo
     {
         return $this->belongsTo(UserStatus::class, 'status_id');
+    }
+
+    /**
+     * Get the phones for the user.
+     */
+    public function phones(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(UserPhone::class);
     }
 }
