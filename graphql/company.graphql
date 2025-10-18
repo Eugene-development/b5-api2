@@ -53,6 +53,7 @@ input CreateCompanyInput {
     legal_name: String!
     inn: String!
     region: String
+    status_id: ID
     ban: Boolean = false
     is_active: Boolean = true
 }
