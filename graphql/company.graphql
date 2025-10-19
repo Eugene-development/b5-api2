@@ -49,38 +49,38 @@ type CompanyEmail {
 }
 
 input CreateCompanyInput {
-    name: String!
-    legal_name: String!
-    inn: String!
-    region: String
-    status_id: ID
+    name: String! @rules(apply: ["required", "string", "max:255"])
+    legal_name: String! @rules(apply: ["required", "string", "max:255"])
+    inn: String! @rules(apply: ["required", "string", "max:12", "unique:companies,inn"])
+    region: String @rules(apply: ["nullable", "string", "max:255"])
+    status_id: ID @rules(apply: ["nullable", "exists:company_statuses,id"])
     ban: Boolean = false
     is_active: Boolean = true
 }
 
 input CreateCompanyPhoneInput {
-    company_id: ID!
-    value: String!
-    contact_person: String
+    company_id: ID! @rules(apply: ["required", "exists:companies,id"])
+    value: String! @rules(apply: ["required", "string", "max:50"])
+    contact_person: String @rules(apply: ["nullable", "string", "max:255"])
     is_primary: Boolean = false
 }
 
 input CreateCompanyEmailInput {
-    company_id: ID!
-    value: String!
-    contact_person: String
+    company_id: ID! @rules(apply: ["required", "exists:companies,id"])
+    value: String! @rules(apply: ["required", "email", "max:255"])
+    contact_person: String @rules(apply: ["nullable", "string", "max:255"])
     is_primary: Boolean = false
 }
 
 input UpdateCompanyInput {
-    id: ID!
-    name: String
-    legal_name: String
-    inn: String
-    region: String
+    id: ID! @rules(apply: ["required", "exists:companies,id"])
+    name: String @rules(apply: ["sometimes", "string", "max:255"])
+    legal_name: String @rules(apply: ["sometimes", "string", "max:255"])
+    inn: String @rules(apply: ["sometimes", "string", "max:12"])
+    region: String @rules(apply: ["nullable", "string", "max:255"])
     ban: Boolean
     is_active: Boolean
-    status_id: ID
+    status_id: ID @rules(apply: ["nullable", "exists:company_statuses,id"])
 }
 
 extend type Query {
