@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 
 class Project extends Model
 {
@@ -74,6 +75,16 @@ class Project extends Model
     public function status(): BelongsTo
     {
         return $this->belongsTo(ProjectStatus::class, 'status_id');
+    }
+
+    /**
+     * Get the users who have accepted this project.
+     */
+    public function users(): BelongsToMany
+    {
+        return $this->belongsToMany(User::class, 'project_user', 'project_id', 'user_id')
+                    ->using(ProjectUser::class)
+                    ->withTimestamps();
     }
 
     /**

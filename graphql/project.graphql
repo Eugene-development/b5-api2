@@ -30,6 +30,7 @@ type Project {
     status_id: ID
     agent: User @belongsTo(foreignKey: "user_id")
     status: ProjectStatusType @belongsTo(foreignKey: "status_id")
+    users: [User!] @belongsToMany(relation: "users")
     region: String
     description: String
     is_active: Boolean
@@ -95,6 +96,14 @@ extend type Query {
     projectsByAgent(user_id: ID! @where): [Project!]! @all
 }
 
+type ProjectUser {
+    id: ID!
+    user_id: ID!
+    project_id: ID!
+    created_at: DateTime!
+    updated_at: DateTime!
+}
+
 extend type Mutation {
     "Create a new project"
     createProject(input: CreateProjectInput! @spread): Project!
@@ -104,6 +113,9 @@ extend type Mutation {
 
     "Delete a project"
     deleteProject(id: ID! @whereKey): Project! @delete
+
+    "Accept a project (link user to project)"
+    acceptProject(projectId: ID!, userId: ID!): ProjectUser! @field(resolver: "App\\GraphQL\\Mutations\\AcceptProject")
 }
 
 scalar DateTime
