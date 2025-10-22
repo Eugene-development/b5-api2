@@ -1,0 +1,55 @@
+type ProjectOffer {
+    id: ID!
+    project_id: ID!
+    project: Project @belongsTo(foreignKey: "project_id")
+    file_url: String!
+    file_name: String!
+    file_size: Int
+    mime_type: String
+    description: String
+    amount: Float
+    valid_until: Date
+    order: Int!
+    created_at: DateTime!
+    updated_at: DateTime!
+    deleted_at: DateTime
+}
+
+input CreateProjectOfferInput {
+    project_id: ID!
+    file_url: String!
+    file_name: String!
+    file_size: Int
+    mime_type: String
+    description: String
+    amount: Float
+    valid_until: Date
+    order: Int = 0
+}
+
+input UpdateProjectOfferInput {
+    id: ID!
+    description: String
+    amount: Float
+    valid_until: Date
+    order: Int
+}
+
+extend type Query {
+    "Get all offers for a project"
+    projectOffers(project_id: ID! @where): [ProjectOffer!]! @all
+
+    "Get a single offer by ID"
+    projectOffer(id: ID! @whereKey): ProjectOffer @find
+}
+
+extend type Mutation {
+    "Upload a new offer for a project"
+    uploadProjectOffer(project_id: ID!, file: Upload!): ProjectOffer!
+
+    "Update offer metadata"
+    updateProjectOffer(input: UpdateProjectOfferInput! @spread): ProjectOffer! @update
+
+    "Delete an offer"
+    deleteProjectOffer(id: ID! @whereKey): ProjectOffer! @delete
+}

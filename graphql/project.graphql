@@ -40,6 +40,8 @@ type Project {
     agent_percentage: Float
     planned_completion_date: Date
     phones: [ProjectPhone!] @hasMany
+    sketches: [ProjectSketch!] @hasMany
+    offers: [ProjectOffer!] @hasMany
     created_at: DateTime!
     updated_at: DateTime!
 }

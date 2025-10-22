@@ -88,6 +88,22 @@ class Project extends Model
     }
 
     /**
+     * Get the sketches for the project.
+     */
+    public function sketches(): HasMany
+    {
+        return $this->hasMany(ProjectSketch::class)->orderBy('order');
+    }
+
+    /**
+     * Get the offers for the project.
+     */
+    public function offers(): HasMany
+    {
+        return $this->hasMany(ProjectOffer::class)->orderBy('order');
+    }
+
+    /**
      * Accessor for 'value' field (maps to 'name').
      */
     public function getValueAttribute()

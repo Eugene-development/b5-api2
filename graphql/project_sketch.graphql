@@ -1,0 +1,49 @@
+type ProjectSketch {
+    id: ID!
+    project_id: ID!
+    project: Project @belongsTo(foreignKey: "project_id")
+    file_url: String!
+    file_name: String!
+    file_size: Int
+    mime_type: String
+    description: String
+    order: Int!
+    created_at: DateTime!
+    updated_at: DateTime!
+    deleted_at: DateTime
+}
+
+input CreateProjectSketchInput {
+    project_id: ID!
+    file_url: String!
+    file_name: String!
+    file_size: Int
+    mime_type: String
+    description: String
+    order: Int = 0
+}
+
+input UpdateProjectSketchInput {
+    id: ID!
+    description: String
+    order: Int
+}
+
+extend type Query {
+    "Get all sketches for a project"
+    projectSketches(project_id: ID! @where): [ProjectSketch!]! @all
+
+    "Get a single sketch by ID"
+    projectSketch(id: ID! @whereKey): ProjectSketch @find
+}
+
+extend type Mutation {
+    "Upload a new sketch for a project"
+    uploadProjectSketch(project_id: ID!, file: Upload!): ProjectSketch!
+
+    "Update sketch metadata"
+    updateProjectSketch(input: UpdateProjectSketchInput! @spread): ProjectSketch! @update
+
+    "Delete a sketch"
+    deleteProjectSketch(id: ID! @whereKey): ProjectSketch! @delete
+}
