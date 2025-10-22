@@ -9,11 +9,27 @@ enum AgentRateType {
     FIXED @enum(value: "fixed")
 }
 
+type ProjectStatusType {
+    id: ID!
+    value: String!
+    slug: String!
+    description: String
+    color: String
+    icon: String
+    sort_order: Int
+    is_default: Boolean!
+    is_active: Boolean!
+    created_at: DateTime!
+    updated_at: DateTime!
+}
+
 type Project {
     id: ID!
     value: String
     user_id: ID
+    status_id: ID
     agent: User @belongsTo(foreignKey: "user_id")
+    status: ProjectStatusType @belongsTo(foreignKey: "status_id")
     region: String
     description: String
     is_active: Boolean
