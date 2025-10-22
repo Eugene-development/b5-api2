@@ -3,3 +3,4 @@
 #import company.graphql
 #import order.graphql
 #import action.graphql
+#import technical_specification.graphql

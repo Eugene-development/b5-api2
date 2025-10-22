@@ -1,0 +1,54 @@
+type TechnicalSpecification {
+    id: ID!
+    project_id: ID!
+    project: Project @belongsTo(foreignKey: "project_id")
+    description: String!
+    comment: String
+    is_active: Boolean!
+    requires_approval: Boolean!
+    is_approved: Boolean!
+    created_at: DateTime!
+    updated_at: DateTime!
+    deleted_at: DateTime
+}
+
+input CreateTechnicalSpecificationInput {
+    project_id: ID!
+    description: String!
+    comment: String
+    is_active: Boolean = true
+    requires_approval: Boolean = false
+    is_approved: Boolean = false
+}
+
+input UpdateTechnicalSpecificationInput {
+    id: ID!
+    project_id: ID
+    description: String
+    comment: String
+    is_active: Boolean
+    requires_approval: Boolean
+    is_approved: Boolean
+}
+
+extend type Query {
+    "Get all technical specifications"
+    technicalSpecifications: [TechnicalSpecification!]! @paginate
+
+    "Get a single technical specification by ID"
+    technicalSpecification(id: ID! @whereKey): TechnicalSpecification @find
+
+    "Get technical specifications by project"
+    technicalSpecificationsByProject(project_id: ID! @where): [TechnicalSpecification!]! @all
+}
+
+extend type Mutation {
+    "Create a new technical specification"
+    createTechnicalSpecification(input: CreateTechnicalSpecificationInput! @spread): TechnicalSpecification! @create
+
+    "Update an existing technical specification"
+    updateTechnicalSpecification(input: UpdateTechnicalSpecificationInput! @spread): TechnicalSpecification! @update
+
+    "Delete a technical specification"
+    deleteTechnicalSpecification(id: ID! @whereKey): TechnicalSpecification! @delete
+}
