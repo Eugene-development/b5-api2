@@ -73,6 +73,7 @@ input UpdateProjectInput {
     id: ID!
     value: String
     user_id: ID
+    status_id: ID
     region: String
     description: String
     is_active: Boolean
@@ -96,6 +97,9 @@ extend type Query {
     "Get projects by agent"
     # projectsByAgent(user_id: ID! @where): [Project!]! @paginate
     projectsByAgent(user_id: ID! @where): [Project!]! @all
+
+    "Get all project statuses"
+    projectStatuses: [ProjectStatusType!]! @all(model: "App\\Models\\ProjectStatus")
 }
 
 type ProjectUser {
