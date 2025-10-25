@@ -19,8 +19,7 @@ return [
 
     'allowed_methods' => ['*'],
 
-    'allowed_origins' => array_filter([
-        env('FRONTEND_URL', 'http://localhost:5173'),
+    'allowed_origins' => [
         'http://localhost:5173',
         'http://127.0.0.1:5173',
         'http://localhost:5040',
@@ -28,8 +27,8 @@ return [
         'https://admin.bonus.band',
         'https://bonus.band',
         'https://rubonus.info',
-        'https://mebelmobile.ru'
-    ]),
+        'https://mebelmobile.ru',
+    ],
     'allowed_origins_patterns' => [],
 
     'allowed_headers' => ['*'],
