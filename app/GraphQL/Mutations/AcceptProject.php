@@ -4,9 +4,7 @@ namespace App\GraphQL\Mutations;
 
 use App\Models\ProjectUser;
 use App\Models\Project;
-use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
 final class AcceptProject
@@ -16,21 +14,40 @@ final class AcceptProject
      */
     public function __invoke($_, array $args)
     {
-        $projectId = $args['projectId'];
-        $userId = $args['userId'];
+        // Ensure correct types: userId is integer, projectId and statusId are ULID strings
+        $projectId = (string) $args['projectId'];
+        $userId = (int) $args['userId'];
+        $statusId = isset($args['statusId']) ? (string) $args['statusId'] : null;
 
-        // Verify project exists
+        Log::info('AcceptProject: Mutation called', [
+            'project_id' => $projectId,
+            'project_id_type' => gettype($projectId),
+            'user_id' => $userId,
+            'user_id_type' => gettype($userId),
+            'status_id' => $statusId,
+            'status_id_type' => gettype($statusId),
+            'request_origin' => request()->header('Origin'),
+            'request_method' => request()->method(),
+        ]);
+
+        // Verify project exists (ULID)
         $project = Project::find($projectId);
         if (!$project) {
-            Log::error('AcceptProject: Project not found', ['project_id' => $projectId]);
-            throw new \Exception('Project not found');
+            Log::error('AcceptProject: Project not found', [
+                'project_id' => $projectId,
+                'project_id_type' => gettype($projectId)
+            ]);
+            throw new \Exception("Project not found with ID: {$projectId}");
         }
 
-        // Verify user exists
+        // Verify user exists (integer ID)
         $user = \App\Models\User::find($userId);
         if (!$user) {
-            Log::error('AcceptProject: User not found', ['user_id' => $userId]);
-            throw new \Exception('User not found');
+            Log::error('AcceptProject: User not found', [
+                'user_id' => $userId,
+                'user_id_type' => gettype($userId)
+            ]);
+            throw new \Exception("User not found with ID: {$userId}");
         }
 
         Log::info('AcceptProject: Attempting to link user to project', [
@@ -48,43 +65,46 @@ final class AcceptProject
             return $existing;
         }
 
-        // Find "Принят куратором" status
-        $curatorAcceptedStatus = \App\Models\ProjectStatus::where('slug', 'curator-processing')->first();
-        if (!$curatorAcceptedStatus) {
-            Log::error('AcceptProject: Curator accepted status not found');
-            throw new \Exception('Curator accepted status not found');
-        }
+        // Create new relationship with explicit ULID
+        $projectUser = new ProjectUser();
+        $projectUser->id = (string) Str::ulid();
+        $projectUser->user_id = $userId;
+        $projectUser->project_id = $projectId;
+        $projectUser->save();
 
-        // Start database transaction
-        \DB::beginTransaction();
+        Log::info('AcceptProject: Created relationship', [
+            'id' => $projectUser->id,
+            'user_id' => $projectUser->user_id,
+            'project_id' => $projectUser->project_id,
+        ]);
 
-        try {
-            // Create new relationship with explicit ULID
-            $projectUser = new ProjectUser();
-            $projectUser->id = (string) Str::ulid();
-            $projectUser->user_id = $userId;
-            $projectUser->project_id = $projectId;
-            $projectUser->save();
+        // Update project status (ULID)
+        if ($statusId) {
+            // Verify status exists
+            $status = \App\Models\ProjectStatus::find($statusId);
+            if (!$status) {
+                Log::error('AcceptProject: Status not found', [
+                    'status_id' => $statusId,
+                    'status_id_type' => gettype($statusId)
+                ]);
+                throw new \Exception("Project status not found with ID: {$statusId}");
+            }
 
-            // Update project status to "Принят куратором"
-            $project->status_id = $curatorAcceptedStatus->id;
+            $project->status_id = $statusId;
             $project->save();
 
-            \DB::commit();
-
-            Log::info('AcceptProject: Successfully created relationship and updated status', [
-                'id' => $projectUser->id,
-                'user_id' => $projectUser->user_id,
-                'project_id' => $projectUser->project_id,
-                'new_status_id' => $curatorAcceptedStatus->id,
-                'new_status' => $curatorAcceptedStatus->value
+            Log::info('AcceptProject: Updated project status', [
+                'project_id' => $project->id,
+                'old_status_id' => $project->getOriginal('status_id'),
+                'new_status_id' => $statusId
             ]);
-
-            return $projectUser;
-        } catch (\Exception $e) {
-            \DB::rollback();
-            Log::error('AcceptProject: Transaction failed', ['error' => $e->getMessage()]);
-            throw $e;
+        } else {
+            Log::warning('AcceptProject: No statusId provided, project status not changed', [
+                'project_id' => $project->id,
+                'current_status_id' => $project->status_id
+            ]);
         }
+
+        return $projectUser;
     }
 }

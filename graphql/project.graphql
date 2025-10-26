@@ -121,7 +121,7 @@ extend type Mutation {
     deleteProject(id: ID! @whereKey): Project! @delete
 
     "Accept a project (link user to project)"
-    acceptProject(projectId: ID!, userId: ID!): ProjectUser! @field(resolver: "App\\GraphQL\\Mutations\\AcceptProject")
+    acceptProject(projectId: ID!, userId: ID!, statusId: ID): ProjectUser! @field(resolver: "App\\GraphQL\\Mutations\\AcceptProject")
 }
 
 scalar DateTime
