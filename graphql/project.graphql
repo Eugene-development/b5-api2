@@ -34,6 +34,7 @@ type Project {
     region: String
     description: String
     is_active: Boolean
+    is_incognito: Boolean
     contract_name: String
     contract_date: Date
     contract_amount: Float
@@ -62,6 +63,7 @@ input CreateProjectInput {
     region: String
     description: String
     is_active: Boolean = true
+    is_incognito: Boolean = false
     contract_name: String
     contract_date: Date
     contract_amount: Float
@@ -77,6 +79,7 @@ input UpdateProjectInput {
     region: String
     description: String
     is_active: Boolean
+    is_incognito: Boolean
     contract_name: String
     contract_date: Date
     contract_amount: Float
