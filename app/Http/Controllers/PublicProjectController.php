@@ -95,9 +95,14 @@ class PublicProjectController extends Controller
                 $contractNumber = 'LEAD-' . strtoupper(substr(uniqid(), -8));
             } while (Project::where('contract_number', $contractNumber)->exists());
 
-            // Create project with client name and agent ID
+            // Generate unique project name
+            do {
+                $projectName = 'PROJECT-' . strtoupper(substr(uniqid(), -8));
+            } while (Project::where('name', $projectName)->exists());
+
+            // Create project with generated project name and agent ID
             $project = Project::create([
-                'name' => $validated['client_name'],
+                'name' => $projectName,
                 'user_id' => $agent->id,
                 'status_id' => $defaultStatus?->id,
                 'contract_number' => $contractNumber,

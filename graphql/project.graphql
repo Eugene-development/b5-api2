@@ -25,6 +25,7 @@ type ProjectStatusType {
 
 type Project {
     id: ID!
+    name: String
     value: String
     user_id: ID
     status_id: ID
@@ -36,6 +37,7 @@ type Project {
     is_active: Boolean
     is_incognito: Boolean
     contract_name: String
+    contract_number: String
     contract_date: Date
     contract_amount: Float
     agent_percentage: Float
