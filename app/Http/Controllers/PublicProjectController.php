@@ -97,7 +97,7 @@ class PublicProjectController extends Controller
 
             // Generate unique project name
             do {
-                $projectName = 'PROJECT-' . strtoupper(substr(uniqid(), -8));
+                $projectName = 'PRO-' . strtoupper(substr(uniqid(), -8));
             } while (Project::where('name', $projectName)->exists());
 
             // Create project with generated project name and agent ID
