@@ -25,11 +25,12 @@ type ProjectStatusType {
 
 type Project {
     id: ID!
-    name: String
     value: String
     user_id: ID
+    client_id: ID
     status_id: ID
     agent: User @belongsTo(foreignKey: "user_id")
+    client: Client @belongsTo(foreignKey: "client_id")
     status: ProjectStatusType @belongsTo(foreignKey: "status_id")
     users: [User!] @belongsToMany(relation: "users")
     region: String
@@ -62,6 +63,7 @@ type ProjectPhone {
 input CreateProjectInput {
     value: String!
     user_id: ID
+    client_id: ID
     region: String
     description: String
     is_active: Boolean = true
@@ -77,6 +79,7 @@ input UpdateProjectInput {
     id: ID!
     value: String
     user_id: ID
+    client_id: ID
     status_id: ID
     region: String
     description: String
@@ -133,3 +136,24 @@ scalar DateTime
     @scalar(class: "Nuwave\\Lighthouse\\Schema\\Types\\Scalars\\DateTime")
 
 scalar Date @scalar(class: "Nuwave\\Lighthouse\\Schema\\Types\\Scalars\\Date")
+
+type Client {
+    id: ID!
+    name: String!
+    birthday: Date
+    ban: Boolean!
+    status_id: ID
+    projects: [Project!] @hasMany
+    phones: [ClientPhone!] @hasMany
+    created_at: DateTime!
+    updated_at: DateTime!
+}
+
+type ClientPhone {
+    id: ID!
+    client_id: ID!
+    value: String!
+    is_primary: Boolean
+    created_at: DateTime!
+    updated_at: DateTime!
+}

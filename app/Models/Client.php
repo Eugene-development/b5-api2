@@ -33,4 +33,12 @@ class Client extends Model
     {
         return $this->hasMany(ClientPhone::class);
     }
+
+    /**
+     * Get the projects for the client.
+     */
+    public function projects(): HasMany
+    {
+        return $this->hasMany(Project::class, 'client_id');
+    }
 }

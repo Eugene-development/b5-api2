@@ -72,20 +72,18 @@ class PublicProjectController extends Controller
         DB::beginTransaction();
 
         try {
-            // Create or update client
-            $client = Client::updateOrCreate(
-                ['id' => $validated['client_id']],
-                ['name' => $validated['client_name']]
-            );
+            // Always create a new client (never search for existing)
+            $client = Client::create([
+                'id' => $validated['client_id'],
+                'name' => $validated['client_name'],
+            ]);
 
-            // Create or update client phone
-            ClientPhone::updateOrCreate(
-                [
-                    'client_id' => $client->id,
-                    'value' => $phoneDigits,
-                ],
-                ['is_primary' => true]
-            );
+            // Create client phone
+            ClientPhone::create([
+                'client_id' => $client->id,
+                'value' => $phoneDigits,
+                'is_primary' => true,
+            ]);
 
             // Get default project status
             $defaultStatus = ProjectStatus::getDefault();
@@ -95,15 +93,16 @@ class PublicProjectController extends Controller
                 $contractNumber = 'LEAD-' . strtoupper(substr(uniqid(), -8));
             } while (Project::where('contract_number', $contractNumber)->exists());
 
-            // Generate unique project name
+            // Generate unique project value
             do {
-                $projectName = 'PRO-' . strtoupper(substr(uniqid(), -8));
-            } while (Project::where('name', $projectName)->exists());
+                $projectValue = 'PRO-' . strtoupper(substr(uniqid(), -8));
+            } while (Project::where('value', $projectValue)->exists());
 
-            // Create project with generated project name and agent ID
+            // Create project with generated project value, client_id and agent ID
             $project = Project::create([
-                'name' => $projectName,
+                'value' => $projectValue,
                 'user_id' => $agent->id,
+                'client_id' => $client->id,
                 'status_id' => $defaultStatus?->id,
                 'contract_number' => $contractNumber,
                 'contract_amount' => 0,

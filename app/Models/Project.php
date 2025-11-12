@@ -30,7 +30,7 @@ class Project extends Model
     protected $table = 'projects';
 
     protected $fillable = [
-        'name',
+        'value',
         'description',
         'contract_number',
         'contract_date',
@@ -40,10 +40,11 @@ class Project extends Model
         'is_active',
         'address',
         'user_id',
+        'client_id',
         'status_id',
     ];
 
-    protected $appends = ['value', 'contract_name', 'region'];
+    protected $appends = ['contract_name', 'region'];
 
     protected $casts = [
         'contract_date' => 'date',
@@ -78,6 +79,14 @@ class Project extends Model
     }
 
     /**
+     * Get the client relationship.
+     */
+    public function client(): BelongsTo
+    {
+        return $this->belongsTo(Client::class, 'client_id');
+    }
+
+    /**
      * Get the users who have accepted this project.
      */
     public function users(): BelongsToMany
@@ -101,22 +110,6 @@ class Project extends Model
     public function offers(): HasMany
     {
         return $this->hasMany(ProjectOffer::class)->orderBy('order');
-    }
-
-    /**
-     * Accessor for 'value' field (maps to 'name').
-     */
-    public function getValueAttribute()
-    {
-        return $this->attributes['name'] ?? null;
-    }
-
-    /**
-     * Mutator for 'value' field (maps to 'name').
-     */
-    public function setValueAttribute($value)
-    {
-        $this->attributes['name'] = $value;
     }
 
     /**
