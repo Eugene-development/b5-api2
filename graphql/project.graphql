@@ -33,6 +33,7 @@ type Project {
     client: Client @belongsTo(foreignKey: "client_id")
     status: ProjectStatusType @belongsTo(foreignKey: "status_id")
     users: [User!] @belongsToMany(relation: "users")
+    contracts: [Contract!] @hasMany
     region: String
     description: String
     is_active: Boolean
