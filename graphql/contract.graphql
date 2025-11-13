@@ -1,0 +1,66 @@
+type Contract {
+    id: ID!
+    project_id: ID!
+    company_id: ID!
+    project: Project @belongsTo
+    company: Company @belongsTo
+    contract_number: String
+    contract_date: Date!
+    planned_completion_date: Date!
+    actual_completion_date: Date
+    agent_percentage: Float!
+    curator_percentage: Float!
+    is_active: Boolean!
+    created_at: DateTime!
+    updated_at: DateTime!
+}
+
+input CreateContractInput {
+    project_id: ID! @rules(apply: ["required", "exists:projects,id"])
+    company_id: ID! @rules(apply: ["required", "exists:companies,id"])
+    contract_number: String @rules(apply: ["nullable", "string", "max:255", "unique:contracts,contract_number"])
+    contract_date: Date! @rules(apply: ["required", "date"])
+    planned_completion_date: Date! @rules(apply: ["required", "date", "after_or_equal:contract_date"])
+    actual_completion_date: Date @rules(apply: ["nullable", "date"])
+    agent_percentage: Float! @rules(apply: ["required", "numeric", "min:0", "max:100"])
+    curator_percentage: Float! @rules(apply: ["required", "numeric", "min:0", "max:100"])
+    is_active: Boolean = true
+}
+
+input UpdateContractInput {
+    id: ID! @rules(apply: ["required", "exists:contracts,id"])
+    project_id: ID @rules(apply: ["sometimes", "exists:projects,id"])
+    company_id: ID @rules(apply: ["sometimes", "exists:companies,id"])
+    contract_number: String @rules(apply: ["nullable", "string", "max:255"])
+    contract_date: Date @rules(apply: ["sometimes", "date"])
+    planned_completion_date: Date @rules(apply: ["sometimes", "date"])
+    actual_completion_date: Date @rules(apply: ["nullable", "date"])
+    agent_percentage: Float @rules(apply: ["sometimes", "numeric", "min:0", "max:100"])
+    curator_percentage: Float @rules(apply: ["sometimes", "numeric", "min:0", "max:100"])
+    is_active: Boolean
+}
+
+extend type Query {
+    "Get all contracts with pagination"
+    contracts(first: Int = 1000, page: Int): [Contract!]! @paginate
+
+    "Get a single contract by ID"
+    contract(id: ID! @whereKey): Contract @find
+
+    "Get contracts by project"
+    contractsByProject(project_id: ID! @where): [Contract!]! @all
+
+    "Get contracts by company"
+    contractsByCompany(company_id: ID! @where): [Contract!]! @all
+}
+
+extend type Mutation {
+    "Create a new contract"
+    createContract(input: CreateContractInput! @spread): Contract! @create
+
+    "Update an existing contract"
+    updateContract(input: UpdateContractInput! @spread): Contract! @update
+
+    "Delete a contract"
+    deleteContract(id: ID! @whereKey): Contract! @delete
+}

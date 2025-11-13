@@ -69,4 +69,12 @@ class Company extends Model
     {
         return $this->hasMany(CompanyEmail::class);
     }
+
+    /**
+     * Get the contracts for the company.
+     */
+    public function contracts(): HasMany
+    {
+        return $this->hasMany(Contract::class);
+    }
 }

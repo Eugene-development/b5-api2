@@ -113,6 +113,14 @@ class Project extends Model
     }
 
     /**
+     * Get the contracts for the project.
+     */
+    public function contracts(): HasMany
+    {
+        return $this->hasMany(Contract::class);
+    }
+
+    /**
      * Accessor for 'contract_name' field (maps to 'contract_number').
      */
     public function getContractNameAttribute()
