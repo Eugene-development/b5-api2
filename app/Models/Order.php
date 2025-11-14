@@ -111,4 +111,12 @@ class Order extends Model
     {
         return $this->hasMany(OrderPosition::class);
     }
+
+    /**
+     * Get the complaints for the order.
+     */
+    public function complaints()
+    {
+        return $this->hasMany(Complaint::class);
+    }
 }

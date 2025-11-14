@@ -80,4 +80,12 @@ class Contract extends Model
     {
         return $this->belongsTo(Company::class, 'company_id');
     }
+
+    /**
+     * Get the complaints for the contract.
+     */
+    public function complaints()
+    {
+        return $this->hasMany(Complaint::class);
+    }
 }

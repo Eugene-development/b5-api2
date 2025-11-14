@@ -1,0 +1,81 @@
+type Complaint {
+    id: ID!
+    contract_id: ID
+    order_id: ID
+    title: String!
+    description: String
+    is_active: Boolean!
+    planned_resolution_date: Date
+    responsible_person: String
+    guilty_party: String
+    priority: String!
+    status: String!
+    resolution_notes: String
+    actual_resolution_date: Date
+    created_at: DateTime!
+    updated_at: DateTime!
+    deleted_at: DateTime
+
+    # Relationships
+    contract: Contract @belongsTo
+    order: Order @belongsTo
+}
+
+input CreateComplaintInput {
+    contract_id: ID @rules(apply: ["nullable", "exists:contracts,id"])
+    order_id: ID @rules(apply: ["nullable", "exists:orders,id"])
+    title: String! @rules(apply: ["required", "string", "max:255"])
+    description: String @rules(apply: ["nullable", "string"])
+    is_active: Boolean = true
+    planned_resolution_date: Date @rules(apply: ["nullable", "date"])
+    responsible_person: String @rules(apply: ["nullable", "string", "max:255"])
+    guilty_party: String @rules(apply: ["nullable", "string", "max:255"])
+    priority: String = "medium" @rules(apply: ["in:low,medium,high,critical"])
+    status: String = "open" @rules(apply: ["in:open,in_progress,resolved,closed"])
+    resolution_notes: String @rules(apply: ["nullable", "string"])
+    actual_resolution_date: Date @rules(apply: ["nullable", "date"])
+}
+
+input UpdateComplaintInput {
+    id: ID! @rules(apply: ["required", "exists:complaints,id"])
+    contract_id: ID @rules(apply: ["nullable", "exists:contracts,id"])
+    order_id: ID @rules(apply: ["nullable", "exists:orders,id"])
+    title: String @rules(apply: ["sometimes", "string", "max:255"])
+    description: String @rules(apply: ["nullable", "string"])
+    is_active: Boolean
+    planned_resolution_date: Date @rules(apply: ["nullable", "date"])
+    responsible_person: String @rules(apply: ["nullable", "string", "max:255"])
+    guilty_party: String @rules(apply: ["nullable", "string", "max:255"])
+    priority: String @rules(apply: ["in:low,medium,high,critical"])
+    status: String @rules(apply: ["in:open,in_progress,resolved,closed"])
+    resolution_notes: String @rules(apply: ["nullable", "string"])
+    actual_resolution_date: Date @rules(apply: ["nullable", "date"])
+}
+
+extend type Query {
+    "Get all complaints with pagination"
+    complaints(first: Int = 1000, page: Int): [Complaint!]! @paginate
+
+    "Get a single complaint by ID"
+    complaint(id: ID! @whereKey): Complaint @find
+
+    "Get complaints by contract"
+    complaintsByContract(contract_id: ID! @where): [Complaint!]! @all
+
+    "Get complaints by order"
+    complaintsByOrder(order_id: ID! @where): [Complaint!]! @all
+
+    "Get active complaints"
+    activeComplaints(is_active: Boolean! @where): [Complaint!]! @paginate
+}
+
+extend type Mutation {
+    "Create a new complaint"
+    createComplaint(input: CreateComplaintInput! @spread): Complaint! @create
+
+    "Update an existing complaint"
+    updateComplaint(input: UpdateComplaintInput! @spread): Complaint! @update
+
+    "Delete a complaint (soft delete)"
+    deleteComplaint(id: ID! @whereKey): Complaint! @delete
+}
