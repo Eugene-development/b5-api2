@@ -109,6 +109,12 @@ extend type Query {
 
     "Get all project statuses"
     projectStatuses: [ProjectStatusType!]! @all(model: "App\\Models\\ProjectStatus")
+
+    "Get all clients"
+    clients: [Client!]! @all(model: "App\\Models\\Client")
+
+    "Get a single client by ID"
+    client(id: ID! @whereKey): Client @find(model: "App\\Models\\Client")
 }
 
 type ProjectUser {
