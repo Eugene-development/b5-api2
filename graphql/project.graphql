@@ -137,6 +137,12 @@ extend type Mutation {
 
     "Accept a project (link user to project)"
     acceptProject(projectId: ID!, userId: ID!, statusId: ID): ProjectUser! @field(resolver: "App\\GraphQL\\Mutations\\AcceptProject")
+
+    "Update a client"
+    updateClient(input: UpdateClientInput! @spread): Client! @update(model: "App\\Models\\Client")
+
+    "Update a client with phones"
+    updateClientWithPhones(input: UpdateClientWithPhonesInput!): Client! @field(resolver: "App\\GraphQL\\Mutations\\UpdateClientWithPhones")
 }
 
 scalar DateTime
@@ -163,4 +169,27 @@ type ClientPhone {
     is_primary: Boolean
     created_at: DateTime!
     updated_at: DateTime!
+}
+
+input UpdateClientInput {
+    id: ID!
+    name: String
+    birthday: Date
+    ban: Boolean
+    status_id: ID
+}
+
+input ClientPhoneInput {
+    id: ID
+    value: String!
+    is_primary: Boolean
+}
+
+input UpdateClientWithPhonesInput {
+    id: ID!
+    name: String
+    birthday: Date
+    ban: Boolean
+    status_id: ID
+    phones: [ClientPhoneInput!]
 }
