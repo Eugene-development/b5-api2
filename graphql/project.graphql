@@ -107,6 +107,9 @@ extend type Query {
     # projectsByAgent(user_id: ID! @where): [Project!]! @paginate
     projectsByAgent(user_id: ID! @where): [Project!]! @all
 
+    "Check if there are any new projects (status_id = 01K7HRKTSQV1894Y3JD9WV5KZX)"
+    hasNewProjects: Boolean! @field(resolver: "App\\GraphQL\\Queries\\HasNewProjects")
+
     "Get all project statuses"
     projectStatuses: [ProjectStatusType!]! @all(model: "App\\Models\\ProjectStatus")
 
