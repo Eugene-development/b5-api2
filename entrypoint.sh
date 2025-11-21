@@ -38,6 +38,26 @@ fi
 echo "🔑 Checking application key..."
 su-exec laravel php artisan key:generate --force 2>/dev/null || echo "⚠️  Key generation failed"
 
+# Генерируем JWT_SECRET для валидации JWT токенов
+echo "🔑 Setting JWT_SECRET..."
+if [ -f "/run/secrets/jwt_secret" ]; then
+    JWT_SECRET=$(cat /run/secrets/jwt_secret)
+    echo "✅ JWT_SECRET loaded from secret"
+else
+    JWT_SECRET=$(openssl rand -base64 64 | tr -d '\n')
+    echo "✅ JWT_SECRET generated"
+fi
+export JWT_SECRET
+
+# Write JWT_SECRET to .env file so PHP-FPM can access it
+if [ -f "/var/www/.env" ]; then
+    # Remove existing JWT_SECRET line if present
+    sed -i '/^JWT_SECRET=/d' /var/www/.env
+    # Add new JWT_SECRET
+    echo "JWT_SECRET=${JWT_SECRET}" >> /var/www/.env
+    echo "✅ JWT_SECRET written to .env"
+fi
+
 echo "✅ Laravel initialization complete!"
 
 # Запуск php-fpm от root пользователя чтобы избежать проблем с логированием

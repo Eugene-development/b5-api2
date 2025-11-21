@@ -61,7 +61,7 @@ return [
     |
     */
 
-    'guards' => null,
+    'guards' => ['api'], // Use JWT guard for GraphQL authentication
 
     /*
     |--------------------------------------------------------------------------
