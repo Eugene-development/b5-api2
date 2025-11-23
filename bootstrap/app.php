@@ -15,6 +15,11 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->api(prepend: [
             \Illuminate\Http\Middleware\HandleCors::class,
         ]);
+
+        // Register middleware aliases
+        $middleware->alias([
+            'auth.cookie' => \App\Http\Middleware\AuthenticateFromCookie::class,
+        ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         //
