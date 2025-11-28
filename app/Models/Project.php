@@ -32,11 +32,6 @@ class Project extends Model
     protected $fillable = [
         'value',
         'description',
-        'contract_number',
-        'contract_date',
-        'planned_completion_date',
-        'contract_amount',
-        'agent_percentage',
         'is_active',
         'address',
         'user_id',
@@ -47,10 +42,6 @@ class Project extends Model
     protected $appends = ['contract_name', 'region'];
 
     protected $casts = [
-        'contract_date' => 'date',
-        'planned_completion_date' => 'date',
-        'contract_amount' => 'decimal:2',
-        'agent_percentage' => 'decimal:2',
         'is_active' => 'boolean',
     ];
 

@@ -88,14 +88,14 @@ class PublicProjectController extends Controller
             // Get default project status
             $defaultStatus = ProjectStatus::getDefault();
 
-            // Generate unique contract number
+            // Generate unique project value (4 letters + 4 digits)
             do {
-                $contractNumber = 'LEAD-' . strtoupper(substr(uniqid(), -8));
-            } while (Project::where('contract_number', $contractNumber)->exists());
-
-            // Generate unique project value
-            do {
-                $projectValue = 'PRO-' . strtoupper(substr(uniqid(), -8));
+                $letters = '';
+                for ($i = 0; $i < 4; $i++) {
+                    $letters .= chr(rand(65, 90)); // A-Z
+                }
+                $digits = str_pad(rand(0, 9999), 4, '0', STR_PAD_LEFT);
+                $projectValue = 'PRO-' . $letters . $digits;
             } while (Project::where('value', $projectValue)->exists());
 
             // Create project with generated project value, client_id and agent ID
@@ -104,8 +104,6 @@ class PublicProjectController extends Controller
                 'user_id' => $agent->id,
                 'client_id' => $client->id,
                 'status_id' => $defaultStatus?->id,
-                'contract_number' => $contractNumber,
-                'contract_amount' => 0,
                 'is_active' => true,
                 'address' => $validated['address'],
             ]);
