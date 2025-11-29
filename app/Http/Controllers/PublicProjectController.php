@@ -95,7 +95,7 @@ class PublicProjectController extends Controller
                     $letters .= chr(rand(65, 90)); // A-Z
                 }
                 $digits = str_pad(rand(0, 9999), 4, '0', STR_PAD_LEFT);
-                $projectValue = 'PRO-' . $letters . $digits;
+                $projectValue = 'PRO-' . $letters . '-' . $digits;
             } while (Project::where('value', $projectValue)->exists());
 
             // Create project with generated project value, client_id and agent ID
