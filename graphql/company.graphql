@@ -1,8 +1,8 @@
 type Company {
     id: ID!
     name: String!
-    legal_name: String!
-    inn: String!
+    legal_name: String
+    inn: String
     ban: Boolean!
     is_active: Boolean!
     region: String
@@ -50,8 +50,8 @@ type CompanyEmail {
 
 input CreateCompanyInput {
     name: String! @rules(apply: ["required", "string", "max:255"])
-    legal_name: String! @rules(apply: ["required", "string", "max:255"])
-    inn: String! @rules(apply: ["required", "string", "max:12", "unique:companies,inn"])
+    legal_name: String @rules(apply: ["nullable", "string", "max:255"])
+    inn: String @rules(apply: ["nullable", "string", "max:12", "unique:companies,inn"])
     region: String @rules(apply: ["nullable", "string", "max:255"])
     status_id: ID @rules(apply: ["nullable", "exists:company_statuses,id"])
     ban: Boolean = false
