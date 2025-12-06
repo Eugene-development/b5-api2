@@ -15,6 +15,7 @@ type TechnicalSpecificationFile {
     mime_type: String
     uploaded_by: ID
     uploader: User @belongsTo(relation: "uploader")
+    download_url: String!
     created_at: DateTime!
     updated_at: DateTime!
 }

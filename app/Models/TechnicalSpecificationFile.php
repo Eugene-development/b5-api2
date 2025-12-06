@@ -69,9 +69,14 @@ class TechnicalSpecificationFile extends Model
      */
     public function getDownloadUrlAttribute(): string
     {
-        // For Yandex Cloud, construct public URL
-        $bucket = config('filesystems.disks.yandex.bucket');
-        $endpoint = config('filesystems.disks.yandex.endpoint');
-        return rtrim($endpoint, '/') . '/' . $bucket . '/' . $this->file_path;
+        // Generate a temporary signed URL with Content-Disposition header
+        // This forces the browser to download the file instead of opening it
+        return Storage::disk('yandex')->temporaryUrl(
+            $this->file_path,
+            now()->addMinutes(5),
+            [
+                'ResponseContentDisposition' => 'attachment; filename="' . $this->file_name . '"',
+            ]
+        );
     }
 }
