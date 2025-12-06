@@ -1,5 +1,6 @@
 type TechnicalSpecification {
     id: ID!
+    value: String
     project_id: ID!
     project: Project @belongsTo(foreignKey: "project_id")
     description: String!

@@ -29,6 +29,7 @@ class TechnicalSpecification extends Model
     protected $table = 'technical_specifications';
 
     protected $fillable = [
+        'value',
         'project_id',
         'description',
         'comment',
@@ -36,6 +37,41 @@ class TechnicalSpecification extends Model
         'requires_approval',
         'is_approved',
     ];
+
+    /**
+     * Boot the model.
+     */
+    protected static function boot()
+    {
+        parent::boot();
+
+        static::creating(function ($model) {
+            if (empty($model->value)) {
+                $model->value = self::generateTzNumber();
+            }
+        });
+    }
+
+    /**
+     * Генерирует уникальный номер ТЗ в формате TZ-ABCD-1234 (буквы + цифры)
+     */
+    public static function generateTzNumber(): string
+    {
+        $letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+
+        do {
+            // Генерируем 4 случайные буквы
+            $part1 = '';
+            for ($i = 0; $i < 4; $i++) {
+                $part1 .= $letters[random_int(0, 25)];
+            }
+            // Генерируем 4 случайные цифры
+            $part2 = str_pad(random_int(0, 9999), 4, '0', STR_PAD_LEFT);
+            $tzNumber = "TZ-{$part1}-{$part2}";
+        } while (self::where('value', $tzNumber)->exists());
+
+        return $tzNumber;
+    }
 
     protected $casts = [
         'is_active' => 'boolean',
