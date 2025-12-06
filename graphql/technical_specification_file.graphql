@@ -1,0 +1,44 @@
+"File type enum for technical specification files"
+enum TechnicalSpecificationFileType {
+    SKETCH @enum(value: "sketch")
+    COMMERCIAL_OFFER @enum(value: "commercial_offer")
+}
+
+"Technical specification file"
+type TechnicalSpecificationFile {
+    id: ID!
+    technical_specification_id: ID!
+    file_type: TechnicalSpecificationFileType!
+    file_name: String!
+    file_path: String!
+    file_size: Int
+    mime_type: String
+    uploaded_by: ID
+    uploader: User @belongsTo(relation: "uploader")
+    created_at: DateTime!
+    updated_at: DateTime!
+}
+
+"Input for uploading a file to a technical specification"
+input UploadTzFileInput {
+    technical_specification_id: ID!
+    file_type: TechnicalSpecificationFileType!
+    file: Upload!
+}
+
+"Input for deleting a technical specification file"
+input DeleteTzFileInput {
+    id: ID!
+}
+
+extend type Mutation {
+    "Upload a file to a technical specification"
+    uploadTzFile(input: UploadTzFileInput! @spread): TechnicalSpecificationFile!
+        @field(resolver: "App\\GraphQL\\Mutations\\UploadTzFile")
+        @guard
+
+    "Delete a technical specification file"
+    deleteTzFile(input: DeleteTzFileInput! @spread): TechnicalSpecificationFile!
+        @field(resolver: "App\\GraphQL\\Mutations\\DeleteTzFile")
+        @guard
+}

@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class TechnicalSpecification extends Model
@@ -88,5 +89,29 @@ class TechnicalSpecification extends Model
     public function project(): BelongsTo
     {
         return $this->belongsTo(Project::class, 'project_id');
+    }
+
+    /**
+     * Get all files associated with this technical specification.
+     */
+    public function files(): HasMany
+    {
+        return $this->hasMany(TechnicalSpecificationFile::class, 'technical_specification_id');
+    }
+
+    /**
+     * Get sketch files associated with this technical specification.
+     */
+    public function sketches(): HasMany
+    {
+        return $this->files()->where('file_type', 'sketch');
+    }
+
+    /**
+     * Get commercial offer files associated with this technical specification.
+     */
+    public function commercialOffers(): HasMany
+    {
+        return $this->files()->where('file_type', 'commercial_offer');
     }
 }

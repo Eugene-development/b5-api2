@@ -17,5 +17,6 @@ scalar Upload
 #import complaint.graphql
 #import action.graphql
 #import technical_specification.graphql
+#import technical_specification_file.graphql
 #import project_sketch.graphql
 #import project_offer.graphql

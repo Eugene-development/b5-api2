@@ -8,6 +8,9 @@ type TechnicalSpecification {
     is_active: Boolean!
     requires_approval: Boolean!
     is_approved: Boolean!
+    files: [TechnicalSpecificationFile!]! @hasMany(relation: "files")
+    sketches: [TechnicalSpecificationFile!]! @hasMany(relation: "sketches")
+    commercialOffers: [TechnicalSpecificationFile!]! @hasMany(relation: "commercialOffers")
     created_at: DateTime!
     updated_at: DateTime!
     deleted_at: DateTime
