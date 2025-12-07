@@ -8,6 +8,16 @@ type Order {
     actual_delivery_date: Date
     is_active: Boolean!
     is_urgent: Boolean!
+    "Сумма закупки"
+    order_amount: Float
+    "Процент агента (дефолт 5%)"
+    agent_percentage: Float!
+    "Процент куратора (дефолт 5%)"
+    curator_percentage: Float!
+    "Рассчитанный бонус агента (order_amount × agent_percentage / 100)"
+    agent_bonus: Float
+    "Рассчитанный бонус куратора (order_amount × curator_percentage / 100)"
+    curator_bonus: Float
     created_at: DateTime!
     updated_at: DateTime!
     company: Company! @belongsTo
@@ -42,6 +52,12 @@ input CreateOrderInput {
     actual_delivery_date: Date
     is_active: Boolean = true
     is_urgent: Boolean = false
+    "Сумма закупки"
+    order_amount: Float @rules(apply: ["nullable", "numeric", "min:0"])
+    "Процент агента (дефолт 5%)"
+    agent_percentage: Float = 5.0 @rules(apply: ["nullable", "numeric", "min:0", "max:100"])
+    "Процент куратора (дефолт 5%)"
+    curator_percentage: Float = 5.0 @rules(apply: ["nullable", "numeric", "min:0", "max:100"])
     positions: [CreateOrderPositionInput!]!
 }
 
@@ -67,6 +83,12 @@ input UpdateOrderInput {
     actual_delivery_date: Date
     is_active: Boolean
     is_urgent: Boolean
+    "Сумма закупки"
+    order_amount: Float @rules(apply: ["nullable", "numeric", "min:0"])
+    "Процент агента"
+    agent_percentage: Float @rules(apply: ["nullable", "numeric", "min:0", "max:100"])
+    "Процент куратора"
+    curator_percentage: Float @rules(apply: ["nullable", "numeric", "min:0", "max:100"])
 }
 
 input UpdateOrderPositionInput {

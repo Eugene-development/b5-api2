@@ -34,6 +34,8 @@ type Project {
     status: ProjectStatusType @belongsTo(foreignKey: "status_id")
     users: [User!] @belongsToMany(relation: "users")
     contracts: [Contract!] @hasMany
+    "Закупки проекта"
+    orders: [Order!] @hasMany
     region: String
     description: String
     is_active: Boolean
@@ -47,6 +49,12 @@ type Project {
     phones: [ProjectPhone!] @hasMany
     sketches: [ProjectSketch!] @hasMany
     offers: [ProjectOffer!] @hasMany
+    "Общий бонус агента по проекту (сумма бонусов из договоров и закупок)"
+    totalAgentBonus: Float @field(resolver: "App\\GraphQL\\Resolvers\\ProjectBonusResolver@totalAgentBonus")
+    "Общий бонус куратора по проекту (сумма бонусов из договоров и закупок)"
+    totalCuratorBonus: Float @field(resolver: "App\\GraphQL\\Resolvers\\ProjectBonusResolver@totalCuratorBonus")
+    "Детализация бонусов по проекту"
+    bonusDetails: ProjectBonusDetails @field(resolver: "App\\GraphQL\\Resolvers\\ProjectBonusResolver@bonusDetails")
     created_at: DateTime!
     updated_at: DateTime!
 }
@@ -195,4 +203,41 @@ input UpdateClientWithPhonesInput {
     ban: Boolean
     status_id: ID
     phones: [ClientPhoneInput!]
+}
+
+
+"Детализация бонусов по проекту"
+type ProjectBonusDetails {
+    "Список договоров с информацией о бонусах"
+    contracts: [ContractBonusInfo!]!
+    "Список закупок с информацией о бонусах"
+    orders: [OrderBonusInfo!]!
+    "Общий бонус агента по проекту"
+    totalAgentBonus: Float!
+    "Общий бонус куратора по проекту"
+    totalCuratorBonus: Float!
+}
+
+"Информация о бонусах по договору"
+type ContractBonusInfo {
+    id: ID!
+    contract_number: String
+    contract_amount: Float
+    agent_percentage: Float!
+    curator_percentage: Float!
+    agent_bonus: Float!
+    curator_bonus: Float!
+    is_active: Boolean!
+}
+
+"Информация о бонусах по закупке"
+type OrderBonusInfo {
+    id: ID!
+    order_number: String!
+    order_amount: Float
+    agent_percentage: Float!
+    curator_percentage: Float!
+    agent_bonus: Float!
+    curator_bonus: Float!
+    is_active: Boolean!
 }

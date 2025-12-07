@@ -11,6 +11,10 @@ type Contract {
     contract_amount: Float
     agent_percentage: Float!
     curator_percentage: Float!
+    "Рассчитанный бонус агента (contract_amount × agent_percentage / 100)"
+    agent_bonus: Float
+    "Рассчитанный бонус куратора (contract_amount × curator_percentage / 100)"
+    curator_bonus: Float
     is_active: Boolean!
     created_at: DateTime!
     updated_at: DateTime!

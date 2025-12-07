@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Services\BonusCalculationService;
 use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -10,6 +11,19 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class Contract extends Model
 {
     use HasFactory, HasUlids;
+
+    /**
+     * Boot the model and add event listeners for automatic bonus recalculation.
+     */
+    protected static function boot()
+    {
+        parent::boot();
+
+        // Автоматический пересчёт бонусов при сохранении договора
+        static::saving(function ($contract) {
+            app(BonusCalculationService::class)->recalculateContractBonuses($contract);
+        });
+    }
 
     /**
      * Indicates if the IDs are auto-incrementing.
@@ -47,6 +61,8 @@ class Contract extends Model
         'contract_amount',
         'agent_percentage',
         'curator_percentage',
+        'agent_bonus',
+        'curator_bonus',
         'is_active',
     ];
 
@@ -62,6 +78,8 @@ class Contract extends Model
         'contract_amount' => 'decimal:2',
         'agent_percentage' => 'decimal:2',
         'curator_percentage' => 'decimal:2',
+        'agent_bonus' => 'decimal:2',
+        'curator_bonus' => 'decimal:2',
         'is_active' => 'boolean',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',

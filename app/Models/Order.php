@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Services\BonusCalculationService;
 use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -24,6 +25,19 @@ class Order extends Model
             if (empty($order->order_number)) {
                 $order->order_number = self::generateOrderNumber();
             }
+
+            // Set default percentages for orders (5% each)
+            if (!isset($order->agent_percentage)) {
+                $order->agent_percentage = 5.00;
+            }
+            if (!isset($order->curator_percentage)) {
+                $order->curator_percentage = 5.00;
+            }
+        });
+
+        // Автоматический пересчёт бонусов при сохранении закупки
+        static::saving(function ($order) {
+            app(BonusCalculationService::class)->recalculateOrderBonuses($order);
         });
     }
 
@@ -72,6 +86,24 @@ class Order extends Model
         'actual_delivery_date',
         'is_active',
         'is_urgent',
+        'order_amount',
+        'agent_percentage',
+        'curator_percentage',
+        'agent_bonus',
+        'curator_bonus',
+    ];
+
+    /**
+     * The model's default values for attributes.
+     * Дефолтные проценты для закупок: агент 5%, куратор 5%
+     *
+     * @var array
+     */
+    protected $attributes = [
+        'agent_percentage' => 5.00,
+        'curator_percentage' => 5.00,
+        'agent_bonus' => 0,
+        'curator_bonus' => 0,
     ];
 
     /**
@@ -84,6 +116,11 @@ class Order extends Model
         'is_urgent' => 'boolean',
         'delivery_date' => 'date',
         'actual_delivery_date' => 'date',
+        'order_amount' => 'decimal:2',
+        'agent_percentage' => 'decimal:2',
+        'curator_percentage' => 'decimal:2',
+        'agent_bonus' => 'decimal:2',
+        'curator_bonus' => 'decimal:2',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
     ];
