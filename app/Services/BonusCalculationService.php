@@ -52,17 +52,14 @@ class BonusCalculationService
      */
     public function recalculateContractBonuses(Contract $contract): void
     {
-        $contract->agent_bonus = $this->calculateBonus(
-            $contract->contract_amount,
-            $contract->agent_percentage ?? 3.0,
-            $contract->is_active ?? true
-        );
+        // Приводим значения к числовым типам
+        $amount = floatval($contract->contract_amount);
+        $agentPercentage = floatval($contract->agent_percentage) ?: 3.0; // Дефолт 3%
+        $curatorPercentage = floatval($contract->curator_percentage) ?: 2.0; // Дефолт 2%
+        $isActive = $contract->is_active ?? true;
 
-        $contract->curator_bonus = $this->calculateBonus(
-            $contract->contract_amount,
-            $contract->curator_percentage ?? 2.0,
-            $contract->is_active ?? true
-        );
+        $contract->agent_bonus = $this->calculateBonus($amount, $agentPercentage, $isActive);
+        $contract->curator_bonus = $this->calculateBonus($amount, $curatorPercentage, $isActive);
     }
 
     /**
@@ -74,17 +71,14 @@ class BonusCalculationService
      */
     public function recalculateOrderBonuses(Order $order): void
     {
-        $order->agent_bonus = $this->calculateBonus(
-            $order->order_amount,
-            $order->agent_percentage ?? 5.0,
-            $order->is_active ?? true
-        );
+        // Приводим значения к числовым типам
+        $amount = floatval($order->order_amount);
+        $agentPercentage = floatval($order->agent_percentage) ?: 5.0;
+        $curatorPercentage = floatval($order->curator_percentage) ?: 5.0;
+        $isActive = $order->is_active ?? true;
 
-        $order->curator_bonus = $this->calculateBonus(
-            $order->order_amount,
-            $order->curator_percentage ?? 5.0,
-            $order->is_active ?? true
-        );
+        $order->agent_bonus = $this->calculateBonus($amount, $agentPercentage, $isActive);
+        $order->curator_bonus = $this->calculateBonus($amount, $curatorPercentage, $isActive);
     }
 
     /**
@@ -117,8 +111,8 @@ class BonusCalculationService
                 'id' => $contract->id,
                 'contract_number' => $contract->contract_number,
                 'contract_amount' => $contract->contract_amount,
-                'agent_percentage' => $contract->agent_percentage,
-                'curator_percentage' => $contract->curator_percentage,
+                'agent_percentage' => $contract->agent_percentage ?? 3.0,
+                'curator_percentage' => $contract->curator_percentage ?? 2.0,
                 'agent_bonus' => $contract->agent_bonus ?? 0,
                 'curator_bonus' => $contract->curator_bonus ?? 0,
                 'is_active' => $contract->is_active,

@@ -13,14 +13,49 @@ class Contract extends Model
     use HasFactory, HasUlids;
 
     /**
+     * The model's default values for attributes.
+     * Дефолтные проценты для договоров: агент 3%, куратор 2%
+     *
+     * @var array
+     */
+    protected $attributes = [
+        'agent_percentage' => 3.00,
+        'curator_percentage' => 2.00,
+        'agent_bonus' => 0,
+        'curator_bonus' => 0,
+        'is_active' => true,
+    ];
+
+    /**
      * Boot the model and add event listeners for automatic bonus recalculation.
      */
     protected static function boot()
     {
         parent::boot();
 
+        // Применяем дефолтные значения процентов при создании
+        static::creating(function ($contract) {
+            // Если процент агента не указан или равен 0, устанавливаем дефолт 3%
+            if (empty($contract->agent_percentage) || floatval($contract->agent_percentage) == 0) {
+                $contract->agent_percentage = 3.00;
+            }
+
+            // Если процент куратора не указан или равен 0, устанавливаем дефолт 2%
+            if (empty($contract->curator_percentage) || floatval($contract->curator_percentage) == 0) {
+                $contract->curator_percentage = 2.00;
+            }
+        });
+
         // Автоматический пересчёт бонусов при сохранении договора
         static::saving(function ($contract) {
+            // Убедимся, что проценты установлены перед расчетом бонусов
+            if (empty($contract->agent_percentage) || floatval($contract->agent_percentage) == 0) {
+                $contract->agent_percentage = 3.00;
+            }
+            if (empty($contract->curator_percentage) || floatval($contract->curator_percentage) == 0) {
+                $contract->curator_percentage = 2.00;
+            }
+
             app(BonusCalculationService::class)->recalculateContractBonuses($contract);
         });
     }

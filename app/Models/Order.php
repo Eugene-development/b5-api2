@@ -27,10 +27,11 @@ class Order extends Model
             }
 
             // Set default percentages for orders (5% each)
-            if (!isset($order->agent_percentage)) {
+            // Применяем дефолт если не указан или равен 0
+            if (!isset($order->agent_percentage) || $order->agent_percentage == 0) {
                 $order->agent_percentage = 5.00;
             }
-            if (!isset($order->curator_percentage)) {
+            if (!isset($order->curator_percentage) || $order->curator_percentage == 0) {
                 $order->curator_percentage = 5.00;
             }
         });
