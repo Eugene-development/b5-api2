@@ -40,6 +40,20 @@ class Order extends Model
         static::saving(function ($order) {
             app(BonusCalculationService::class)->recalculateOrderBonuses($order);
         });
+
+        // Обновляем updated_at проекта при изменении закупки
+        static::saved(function ($order) {
+            if ($order->project) {
+                $order->project->touch();
+            }
+        });
+
+        // Обновляем updated_at проекта при удалении закупки
+        static::deleted(function ($order) {
+            if ($order->project) {
+                $order->project->touch();
+            }
+        });
     }
 
     /**

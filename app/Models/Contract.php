@@ -58,6 +58,20 @@ class Contract extends Model
 
             app(BonusCalculationService::class)->recalculateContractBonuses($contract);
         });
+
+        // Обновляем updated_at проекта при изменении договора
+        static::saved(function ($contract) {
+            if ($contract->project) {
+                $contract->project->touch();
+            }
+        });
+
+        // Обновляем updated_at проекта при удалении договора
+        static::deleted(function ($contract) {
+            if ($contract->project) {
+                $contract->project->touch();
+            }
+        });
     }
 
     /**
