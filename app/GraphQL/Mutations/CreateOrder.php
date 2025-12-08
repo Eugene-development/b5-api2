@@ -19,11 +19,14 @@ final readonly class CreateOrder
      *     value: string,
      *     company_id: string,
      *     project_id: string,
-     *     order_number: string,
+     *     order_number?: string,
      *     delivery_date?: string,
      *     actual_delivery_date?: string,
      *     is_active?: bool,
      *     is_urgent?: bool,
+     *     order_amount?: float,
+     *     agent_percentage?: float,
+     *     curator_percentage?: float,
      *     positions: array<array{
      *         value: string,
      *         article: string,
@@ -57,6 +60,17 @@ final readonly class CreateOrder
 
         // Use transaction to ensure data consistency
         return DB::transaction(function () use ($input) {
+            // Calculate order_amount from positions if not provided
+            $orderAmount = $input['order_amount'] ?? null;
+            if ($orderAmount === null && !empty($input['positions'])) {
+                $orderAmount = 0;
+                foreach ($input['positions'] as $positionData) {
+                    $price = floatval($positionData['price'] ?? 0);
+                    $count = intval($positionData['count'] ?? 0);
+                    $orderAmount += $price * $count;
+                }
+            }
+
             // Create the order (order_number will be auto-generated if not provided)
             $order = Order::create([
                 'value' => $input['value'],
@@ -67,6 +81,9 @@ final readonly class CreateOrder
                 'actual_delivery_date' => $input['actual_delivery_date'] ?? null,
                 'is_active' => $input['is_active'] ?? true,
                 'is_urgent' => $input['is_urgent'] ?? false,
+                'order_amount' => $orderAmount,
+                'agent_percentage' => $input['agent_percentage'] ?? 5.00,
+                'curator_percentage' => $input['curator_percentage'] ?? 5.00,
             ]);
 
             // Create order positions
