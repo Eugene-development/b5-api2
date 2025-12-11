@@ -1,0 +1,93 @@
+"Статус бонуса агента"
+type BonusStatus {
+    id: ID!
+    code: String!
+    name: String!
+    description: String
+}
+
+"Статус оплаты партнёром"
+type PartnerPaymentStatus {
+    id: ID!
+    code: String!
+    name: String!
+    description: String
+}
+
+"Бонус агента"
+type AgentBonus {
+    id: ID!
+    agent_id: ID!
+    agent: User @belongsTo
+    contract_id: ID
+    contract: Contract @belongsTo
+    order_id: ID
+    order: Order @belongsTo
+    commission_amount: Float!
+    status_id: ID!
+    status: BonusStatus @belongsTo
+    accrued_at: DateTime!
+    available_at: DateTime
+    paid_at: DateTime
+    created_at: DateTime!
+    updated_at: DateTime!
+    "Тип источника: contract или order"
+    source_type: String! @method(name: "getSourceTypeAttribute")
+    "Сумма источника (договора или закупки)"
+    source_amount: Float! @method(name: "getSourceAmountAttribute")
+    "Название проекта"
+    project_name: String @method(name: "getProjectNameAttribute")
+}
+
+"Статистика бонусов агента"
+type AgentBonusStats {
+    "Всего начислено (сумма всех бонусов)"
+    total_accrued: Float!
+    "Доступно к выплате"
+    total_available: Float!
+    "Выплачено"
+    total_paid: Float!
+}
+
+"Фильтры для бонусов агента"
+input AgentBonusFilters {
+    "Код статуса (accrued, available_for_payment, paid)"
+    status_code: String
+    "Тип источника (contract, order)"
+    source_type: String
+    "Дата начисления от"
+    date_from: DateTime
+    "Дата начисления до"
+    date_to: DateTime
+}
+
+
+extend type Query {
+    "Получить бонусы текущего агента"
+    agentBonuses(filters: AgentBonusFilters): [AgentBonus!]!
+        @field(resolver: "App\\GraphQL\\Queries\\AgentBonusesQuery")
+
+    "Получить статистику бонусов текущего агента"
+    agentBonusStats(filters: AgentBonusFilters): AgentBonusStats!
+        @field(resolver: "App\\GraphQL\\Queries\\AgentBonusStatsQuery")
+
+    "Получить доступные к выплате бонусы агента (для админа)"
+    availableBonusesForPayment(agent_id: ID!): [AgentBonus!]!
+        @field(resolver: "App\\GraphQL\\Queries\\AvailableBonusesQuery")
+
+    "Справочник статусов бонусов"
+    bonusStatuses: [BonusStatus!]! @all(model: "App\\Models\\BonusStatus")
+
+    "Справочник статусов оплаты партнёром"
+    partnerPaymentStatuses: [PartnerPaymentStatus!]! @all(model: "App\\Models\\PartnerPaymentStatus")
+}
+
+extend type Mutation {
+    "Обновить статус оплаты партнёром для договора"
+    updateContractPartnerPaymentStatus(contract_id: ID!, status_code: String!): Contract!
+        @field(resolver: "App\\GraphQL\\Mutations\\UpdateContractPartnerPaymentStatus")
+
+    "Обновить статус оплаты партнёром для закупки"
+    updateOrderPartnerPaymentStatus(order_id: ID!, status_code: String!): Order!
+        @field(resolver: "App\\GraphQL\\Mutations\\UpdateOrderPartnerPaymentStatus")
+}

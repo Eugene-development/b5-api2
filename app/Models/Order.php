@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class Order extends Model
 {
@@ -170,5 +171,21 @@ class Order extends Model
     public function complaints()
     {
         return $this->hasMany(Complaint::class);
+    }
+
+    /**
+     * Get the partner payment status.
+     */
+    public function partnerPaymentStatus(): BelongsTo
+    {
+        return $this->belongsTo(PartnerPaymentStatus::class, 'partner_payment_status_id');
+    }
+
+    /**
+     * Get the agent bonus for this order.
+     */
+    public function agentBonus(): HasOne
+    {
+        return $this->hasOne(AgentBonus::class, 'order_id');
     }
 }

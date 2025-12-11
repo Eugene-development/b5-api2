@@ -1,0 +1,90 @@
+"Статус выплаты"
+type PaymentStatus {
+    id: ID!
+    code: String!
+    name: String!
+    description: String
+}
+
+"Способ выплаты"
+type PaymentMethod {
+    id: ID!
+    code: String!
+    name: String!
+    description: String
+}
+
+"Выплата агенту"
+type AgentPayment {
+    id: ID!
+    agent_id: ID!
+    agent: User @belongsTo
+    total_amount: Float!
+    payment_date: DateTime!
+    reference_number: String
+    status_id: ID!
+    status: PaymentStatus @belongsTo
+    method_id: ID!
+    method: PaymentMethod @belongsTo
+    bonuses: [AgentBonus!]! @belongsToMany
+    created_at: DateTime!
+    updated_at: DateTime!
+}
+
+"Фильтры для выплат агента"
+input AgentPaymentFilters {
+    "Код статуса (pending, completed, failed)"
+    status_code: String
+    "Дата выплаты от"
+    date_from: DateTime
+    "Дата выплаты до"
+    date_to: DateTime
+}
+
+"Входные данные для создания выплаты"
+input CreateAgentPaymentInput {
+    agent_id: ID! @rules(apply: ["required", "exists:users,id"])
+    bonus_ids: [ID!]! @rules(apply: ["required", "array", "min:1"])
+    method_id: ID! @rules(apply: ["required", "exists:payment_methods,id"])
+    reference_number: String
+}
+
+extend type Query {
+    "Получить выплаты текущего агента"
+    agentPayments(filters: AgentPaymentFilters): [AgentPayment!]!
+        @field(resolver: "App\\GraphQL\\Queries\\AgentPaymentsQuery")
+
+    "Получить все выплаты (для админа)"
+    agentPaymentsAdmin(agent_id: ID, filters: AgentPaymentFilters): [AgentPayment!]!
+        @field(resolver: "App\\GraphQL\\Queries\\AgentPaymentsAdminQuery")
+
+    "Получить агентов с доступными бонусами (для админа)"
+    agentsWithAvailableBonuses: [AgentWithBonuses!]!
+        @field(resolver: "App\\GraphQL\\Queries\\AgentsWithAvailableBonusesQuery")
+
+    "Справочник статусов выплат"
+    paymentStatuses: [PaymentStatus!]! @all(model: "App\\Models\\PaymentStatus")
+
+    "Справочник способов выплат"
+    paymentMethods: [PaymentMethod!]! @all(model: "App\\Models\\PaymentMethod")
+}
+
+"Агент с информацией о доступных бонусах"
+type AgentWithBonuses {
+    id: ID!
+    name: String!
+    email: String!
+    available_bonuses_count: Int!
+    available_bonuses_total: Float!
+}
+
+
+extend type Mutation {
+    "Создать выплату агенту (только для админа)"
+    createAgentPayment(input: CreateAgentPaymentInput!): AgentPayment!
+        @field(resolver: "App\\GraphQL\\Mutations\\CreateAgentPayment")
+
+    "Обновить статус выплаты (только для админа)"
+    updatePaymentStatus(payment_id: ID!, status_code: String!): AgentPayment!
+        @field(resolver: "App\\GraphQL\\Mutations\\UpdatePaymentStatus")
+}

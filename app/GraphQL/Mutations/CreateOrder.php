@@ -6,6 +6,7 @@ namespace App\GraphQL\Mutations;
 
 use App\Models\Order;
 use App\Models\OrderPosition;
+use App\Services\BonusService;
 use GraphQL\Error\Error;
 use Illuminate\Support\Facades\DB;
 
@@ -101,6 +102,10 @@ final readonly class CreateOrder
                     'is_urgent' => $positionData['is_urgent'] ?? false,
                 ]);
             }
+
+            // Автоматически создаём бонус агента
+            $bonusService = app(BonusService::class);
+            $bonusService->createBonusForOrder($order);
 
             // Load relationships and return
             return $order->load(['positions', 'company', 'project']);

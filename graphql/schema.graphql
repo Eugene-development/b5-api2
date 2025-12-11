@@ -20,3 +20,5 @@ scalar Upload
 #import technical_specification_file.graphql
 #import project_sketch.graphql
 #import project_offer.graphql
+#import agent_bonus.graphql
+#import agent_payment.graphql

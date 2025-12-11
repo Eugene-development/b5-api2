@@ -62,11 +62,13 @@ extend type Query {
 }
 
 extend type Mutation {
-    "Create a new contract"
-    createContract(input: CreateContractInput! @spread): Contract! @create
+    "Create a new contract with automatic bonus creation"
+    createContract(input: CreateContractInput!): Contract!
+        @field(resolver: "App\\GraphQL\\Mutations\\CreateContract")
 
-    "Update an existing contract"
-    updateContract(input: UpdateContractInput! @spread): Contract! @update
+    "Update an existing contract with automatic bonus recalculation"
+    updateContract(input: UpdateContractInput!): Contract!
+        @field(resolver: "App\\GraphQL\\Mutations\\UpdateContract")
 
     "Delete a contract"
     deleteContract(id: ID! @whereKey): Contract! @delete

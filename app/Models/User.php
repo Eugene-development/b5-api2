@@ -125,6 +125,22 @@ class User extends Authenticatable implements JWTSubject
     }
 
     /**
+     * Get the agent bonuses for the user.
+     */
+    public function agentBonuses(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(AgentBonus::class, 'agent_id');
+    }
+
+    /**
+     * Get the agent payments for the user.
+     */
+    public function agentPayments(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(AgentPayment::class, 'agent_id');
+    }
+
+    /**
      * Get the identifier that will be stored in the subject claim of the JWT.
      *
      * @return mixed
