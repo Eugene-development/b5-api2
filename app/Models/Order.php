@@ -42,6 +42,12 @@ class Order extends Model
             app(BonusCalculationService::class)->recalculateOrderBonuses($order);
         });
 
+        // Создаем запись в agent_bonuses при создании закупки
+        static::created(function ($order) {
+            $bonusService = app(\App\Services\BonusService::class);
+            $bonusService->createBonusForOrder($order);
+        });
+
         // Обновляем updated_at проекта при изменении закупки
         static::saved(function ($order) {
             if ($order->project) {

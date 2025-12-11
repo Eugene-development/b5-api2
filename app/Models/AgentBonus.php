@@ -113,10 +113,10 @@ class AgentBonus extends Model
     public function getProjectNameAttribute(): ?string
     {
         if ($this->contract_id && $this->contract && $this->contract->project) {
-            return $this->contract->project->name;
+            return $this->contract->project->value;
         }
         if ($this->order_id && $this->order && $this->order->project) {
-            return $this->order->project->name;
+            return $this->order->project->value;
         }
         return null;
     }

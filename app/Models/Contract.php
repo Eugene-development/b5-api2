@@ -74,6 +74,12 @@ class Contract extends Model
             app(BonusCalculationService::class)->recalculateContractBonuses($contract);
         });
 
+        // Создаем запись в agent_bonuses при создании договора
+        static::created(function ($contract) {
+            $bonusService = app(\App\Services\BonusService::class);
+            $bonusService->createBonusForContract($contract);
+        });
+
         // Обновляем updated_at проекта при изменении договора
         static::saved(function ($contract) {
             if ($contract->project) {

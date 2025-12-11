@@ -276,22 +276,22 @@ class BonusService
      */
     private function getAgentIdFromProject(string $projectId): ?int
     {
-        // Ищем агента в связи project_user
+        // Ищем агента в таблице projects (поле user_id)
+        $project = DB::table('projects')
+            ->where('id', $projectId)
+            ->first();
+
+        if ($project && isset($project->user_id)) {
+            return $project->user_id;
+        }
+
+        // Альтернативно: ищем в связи project_user (если используется)
         $projectUser = DB::table('project_user')
             ->where('project_id', $projectId)
             ->first();
 
         if ($projectUser) {
             return $projectUser->user_id;
-        }
-
-        // Альтернативно: ищем в таблице projects поле agent_id если оно есть
-        $project = DB::table('projects')
-            ->where('id', $projectId)
-            ->first();
-
-        if ($project && isset($project->agent_id)) {
-            return $project->agent_id;
         }
 
         return null;
