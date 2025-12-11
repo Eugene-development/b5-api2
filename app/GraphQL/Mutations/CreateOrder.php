@@ -85,6 +85,7 @@ final readonly class CreateOrder
                 'order_amount' => $orderAmount,
                 'agent_percentage' => $input['agent_percentage'] ?? 5.00,
                 'curator_percentage' => $input['curator_percentage'] ?? 5.00,
+                'partner_payment_status_id' => 1, // pending по умолчанию
             ]);
 
             // Create order positions

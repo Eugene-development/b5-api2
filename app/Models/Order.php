@@ -107,6 +107,7 @@ class Order extends Model
         'curator_percentage',
         'agent_bonus',
         'curator_bonus',
+        'partner_payment_status_id',
     ];
 
     /**

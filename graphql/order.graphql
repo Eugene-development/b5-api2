@@ -18,6 +18,10 @@ type Order {
     agent_bonus: Float
     "Рассчитанный бонус куратора (order_amount × curator_percentage / 100)"
     curator_bonus: Float
+    "ID статуса оплаты партнёром"
+    partner_payment_status_id: ID!
+    "Статус оплаты партнёром"
+    partnerPaymentStatus: PartnerPaymentStatus @belongsTo
     created_at: DateTime!
     updated_at: DateTime!
     company: Company! @belongsTo

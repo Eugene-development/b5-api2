@@ -22,11 +22,11 @@ final readonly class CreateContract
         $input = $args['input'] ?? $args;
 
         return DB::transaction(function () use ($input) {
-            // Создаём договор
+            // Создаём договор (contract_number генерируется автоматически, если не указан)
             $contract = Contract::create([
                 'project_id' => $input['project_id'],
                 'company_id' => $input['company_id'],
-                'contract_number' => $input['contract_number'] ?? null,
+                'contract_number' => $input['contract_number'] ?? null, // Если null, будет сгенерирован автоматически
                 'contract_date' => $input['contract_date'],
                 'planned_completion_date' => $input['planned_completion_date'],
                 'actual_completion_date' => $input['actual_completion_date'] ?? null,

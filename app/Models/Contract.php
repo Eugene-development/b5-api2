@@ -36,6 +36,20 @@ class Contract extends Model
 
         // Применяем дефолтные значения процентов при создании
         static::creating(function ($contract) {
+            // Генерируем уникальный номер договора, если не указан
+            if (empty($contract->contract_number)) {
+                do {
+                    $letters = '';
+                    for ($i = 0; $i < 4; $i++) {
+                        $letters .= chr(rand(65, 90)); // A-Z
+                    }
+                    $digits = str_pad((string)rand(0, 9999), 4, '0', STR_PAD_LEFT);
+                    $contractNumber = 'DOC-' . $letters . '-' . $digits;
+                } while (Contract::where('contract_number', $contractNumber)->exists());
+
+                $contract->contract_number = $contractNumber;
+            }
+
             // Если процент агента не указан или равен 0, устанавливаем дефолт 3%
             if (empty($contract->agent_percentage) || floatval($contract->agent_percentage) == 0) {
                 $contract->agent_percentage = 3.00;

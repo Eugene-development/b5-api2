@@ -112,6 +112,14 @@ class Project extends Model
     }
 
     /**
+     * Get the orders for the project.
+     */
+    public function orders(): HasMany
+    {
+        return $this->hasMany(Order::class);
+    }
+
+    /**
      * Accessor for 'contract_name' field (maps to 'contract_number').
      */
     public function getContractNameAttribute()
