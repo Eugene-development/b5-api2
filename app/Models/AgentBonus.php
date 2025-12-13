@@ -40,6 +40,17 @@ class AgentBonus extends Model
     ];
 
     /**
+     * Атрибуты, которые должны быть добавлены к массиву модели.
+     */
+    protected $appends = [
+        'source_type',
+        'source_amount',
+        'project_name',
+        'contract_number',
+        'order_number',
+    ];
+
+    /**
      * Получить агента (пользователя), которому начислен бонус.
      */
     public function agent(): BelongsTo
@@ -117,6 +128,28 @@ class AgentBonus extends Model
         }
         if ($this->order_id && $this->order && $this->order->project) {
             return $this->order->project->value;
+        }
+        return null;
+    }
+
+    /**
+     * Accessor: Номер договора.
+     */
+    public function getContractNumberAttribute(): ?string
+    {
+        if ($this->contract_id && $this->contract) {
+            return $this->contract->contract_number;
+        }
+        return null;
+    }
+
+    /**
+     * Accessor: Номер заказа.
+     */
+    public function getOrderNumberAttribute(): ?string
+    {
+        if ($this->order_id && $this->order) {
+            return $this->order->order_number;
         }
         return null;
     }
