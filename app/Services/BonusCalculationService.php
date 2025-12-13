@@ -85,6 +85,10 @@ class BonusCalculationService
      * Получить сводку бонусов по проекту.
      * Агрегирует бонусы из всех договоров и закупок проекта.
      *
+     * Бонусы учитываются только для:
+     * - Договоров со статусом "Заключён" (slug: signed)
+     * - Закупок со статусом "Сформирован" (slug: formed)
+     *
      * @param string $projectId
      * @return array{
      *   contracts: array,
@@ -95,11 +99,15 @@ class BonusCalculationService
      */
     public function getProjectBonusSummary(string $projectId): array
     {
-        // Получаем все договоры проекта
-        $contracts = Contract::where('project_id', $projectId)->get();
+        // Получаем все договоры проекта с их статусами
+        $contracts = Contract::where('project_id', $projectId)
+            ->with('status')
+            ->get();
 
-        // Получаем все закупки проекта
-        $orders = Order::where('project_id', $projectId)->get();
+        // Получаем все закупки проекта с их статусами
+        $orders = Order::where('project_id', $projectId)
+            ->with('status')
+            ->get();
 
         // Агрегируем бонусы
         $totalAgentBonus = 0.0;
@@ -107,6 +115,12 @@ class BonusCalculationService
 
         $contractsData = [];
         foreach ($contracts as $contract) {
+            // Фильтруем: отправляем на фронтенд только договоры со статусом "Заключён" (signed)
+            $statusSlug = $contract->status?->slug;
+            if ($statusSlug !== 'signed') {
+                continue;
+            }
+
             $contractsData[] = [
                 'id' => $contract->id,
                 'contract_number' => $contract->contract_number,
@@ -118,12 +132,19 @@ class BonusCalculationService
                 'is_active' => $contract->is_active,
             ];
 
+            // Считаем бонусы
             $totalAgentBonus += $contract->agent_bonus ?? 0;
             $totalCuratorBonus += $contract->curator_bonus ?? 0;
         }
 
         $ordersData = [];
         foreach ($orders as $order) {
+            // Фильтруем: отправляем на фронтенд только заказы со статусом "Сформирован" (formed)
+            $statusSlug = $order->status?->slug;
+            if ($statusSlug !== 'formed') {
+                continue;
+            }
+
             $ordersData[] = [
                 'id' => $order->id,
                 'order_number' => $order->order_number,
@@ -135,6 +156,7 @@ class BonusCalculationService
                 'is_active' => $order->is_active,
             ];
 
+            // Считаем бонусы
             $totalAgentBonus += $order->agent_bonus ?? 0;
             $totalCuratorBonus += $order->curator_bonus ?? 0;
         }

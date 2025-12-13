@@ -206,6 +206,32 @@ input UpdateClientWithPhonesInput {
 }
 
 
+"Статус договора"
+type ContractStatus {
+    id: ID!
+    value: String!
+    slug: String!
+    description: String
+    color: String
+    icon: String
+    sort_order: Int!
+    is_default: Boolean!
+    is_active: Boolean!
+}
+
+"Статус заказа"
+type OrderStatus {
+    id: ID!
+    value: String!
+    slug: String!
+    description: String
+    color: String
+    icon: String
+    sort_order: Int!
+    is_default: Boolean!
+    is_active: Boolean!
+}
+
 "Детализация бонусов по проекту"
 type ProjectBonusDetails {
     "Список договоров с информацией о бонусах"

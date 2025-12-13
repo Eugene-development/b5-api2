@@ -114,6 +114,7 @@ class Order extends Model
         'agent_bonus',
         'curator_bonus',
         'partner_payment_status_id',
+        'status_id',
     ];
 
     /**
@@ -194,5 +195,13 @@ class Order extends Model
     public function agentBonus(): HasOne
     {
         return $this->hasOne(AgentBonus::class, 'order_id');
+    }
+
+    /**
+     * Get the status of the order.
+     */
+    public function status(): BelongsTo
+    {
+        return $this->belongsTo(OrderStatus::class, 'status_id');
     }
 }

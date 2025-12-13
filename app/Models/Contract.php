@@ -134,6 +134,7 @@ class Contract extends Model
         'agent_bonus',
         'curator_bonus',
         'is_active',
+        'status_id',
     ];
 
     /**
@@ -193,5 +194,13 @@ class Contract extends Model
     public function agentBonus(): HasOne
     {
         return $this->hasOne(AgentBonus::class, 'contract_id');
+    }
+
+    /**
+     * Get the status of the contract.
+     */
+    public function status(): BelongsTo
+    {
+        return $this->belongsTo(ContractStatus::class, 'status_id');
     }
 }
