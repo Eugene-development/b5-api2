@@ -2,8 +2,10 @@ type Contract {
     id: ID!
     project_id: ID!
     company_id: ID!
+    status_id: ID
     project: Project @belongsTo
     company: Company @belongsTo
+    status: ContractStatus @belongsTo
     contract_number: String
     contract_date: Date!
     planned_completion_date: Date!
@@ -59,6 +61,9 @@ extend type Query {
 
     "Get contracts by company"
     contractsByCompany(company_id: ID! @where): [Contract!]! @all
+
+    "Get all contract statuses"
+    contractStatuses: [ContractStatus!]! @all(model: "App\\Models\\ContractStatus", scopes: ["active"])
 }
 
 extend type Mutation {
@@ -72,4 +77,8 @@ extend type Mutation {
 
     "Delete a contract"
     deleteContract(id: ID! @whereKey): Contract! @delete
+
+    "Update contract status"
+    updateContractStatus(contract_id: ID!, status_slug: String!): Contract!
+        @field(resolver: "App\\GraphQL\\Mutations\\UpdateContractStatus")
 }

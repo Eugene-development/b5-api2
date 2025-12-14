@@ -61,4 +61,12 @@ class ContractStatus extends Model
             ->where('is_active', true)
             ->first();
     }
+
+    /**
+     * Scope a query to only include active statuses.
+     */
+    public function scopeActive($query)
+    {
+        return $query->where('is_active', true)->orderBy('sort_order');
+    }
 }
