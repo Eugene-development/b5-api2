@@ -25,6 +25,9 @@ final readonly class UpdateContract
         return DB::transaction(function () use ($input, $contractId) {
             $contract = Contract::findOrFail($contractId);
 
+            // Запоминаем предыдущее значение is_active
+            $previousIsActive = $contract->is_active;
+
             // Обновляем поля договора
             $contract->fill(array_filter([
                 'project_id' => $input['project_id'] ?? null,
@@ -45,6 +48,12 @@ final readonly class UpdateContract
             $bonusService = app(BonusService::class);
             if ($contract->agentBonus) {
                 $bonusService->recalculateBonus($contract->agentBonus);
+
+                // Если изменился is_active, обрабатываем изменение статуса бонуса
+                if (isset($input['is_active']) && $previousIsActive !== $contract->is_active) {
+                    $contract->load(['status', 'partnerPaymentStatus']);
+                    $bonusService->handleContractActiveChange($contract);
+                }
             }
 
             return $contract->load(['project', 'company']);

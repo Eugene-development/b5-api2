@@ -4,6 +4,7 @@ namespace App\GraphQL\Mutations;
 
 use App\Models\Contract;
 use App\Models\ContractStatus;
+use App\Services\BonusService;
 use Illuminate\Support\Facades\Log;
 
 class UpdateContractStatus
@@ -37,7 +38,11 @@ class UpdateContractStatus
         $contract->save();
 
         // Reload with relationships
-        $contract->load(['project', 'company', 'status']);
+        $contract->load(['project', 'company', 'status', 'partnerPaymentStatus', 'agentBonus']);
+
+        // Обновляем статус бонуса при изменении статуса договора
+        $bonusService = app(BonusService::class);
+        $bonusService->handleContractStatusChange($contract, $statusSlug);
 
         Log::info('UpdateContractStatus: Success', [
             'contract_id' => $contract->id,

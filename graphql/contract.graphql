@@ -3,9 +3,11 @@ type Contract {
     project_id: ID!
     company_id: ID!
     status_id: ID
+    partner_payment_status_id: ID
     project: Project @belongsTo
     company: Company @belongsTo
     status: ContractStatus @belongsTo
+    partnerPaymentStatus: PartnerPaymentStatus @belongsTo
     contract_number: String
     contract_date: Date!
     planned_completion_date: Date!

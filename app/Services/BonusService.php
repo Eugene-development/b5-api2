@@ -6,7 +6,6 @@ use App\Models\AgentBonus;
 use App\Models\BonusStatus;
 use App\Models\Contract;
 use App\Models\Order;
-use App\Models\PartnerPaymentStatus;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -15,8 +14,10 @@ use Illuminate\Support\Facades\DB;
  * Управляет жизненным циклом бонусов:
  * - Создание бонуса при создании договора/закупки
  * - Пересчёт при изменении суммы/процента
- * - Переход в статус "доступно к выплате" при оплате партнёром
- * - Откат статуса при отмене оплаты
+ * - Переход в статус "доступно к выплате":
+ *   - Для договоров: при оплате партнёром + статус "Заключён" + is_active
+ *   - Для заказов: при доставке + is_active (без проверки оплаты партнёром)
+ * - Откат статуса при изменении условий
  */
 class BonusService
 {
@@ -229,6 +230,11 @@ class BonusService
     /**
      * Обработать изменение статуса оплаты партнёром для договора.
      *
+     * Бонус переходит в статус "Доступно к выплате" только если:
+     * - Статус оплаты партнёром = 'paid'
+     * - Статус договора = 'signed' (Заключён)
+     * - Договор активен (is_active = true)
+     *
      * @param Contract $contract
      * @param string $newStatusCode
      * @return void
@@ -241,7 +247,15 @@ class BonusService
         }
 
         if ($newStatusCode === 'paid') {
-            $this->markBonusAsAvailable($bonus);
+            // Проверяем дополнительные условия для перевода в "Доступно"
+            $contractStatus = $contract->status;
+            $isContractSigned = $contractStatus && $contractStatus->slug === 'signed';
+            $isContractActive = $contract->is_active === true;
+
+            if ($isContractSigned && $isContractActive) {
+                $this->markBonusAsAvailable($bonus);
+            }
+            // Если условия не выполнены, бонус остаётся в текущем статусе
         } elseif ($newStatusCode === 'pending') {
             $this->revertBonusToAccrued($bonus);
         }
@@ -250,21 +264,158 @@ class BonusService
     /**
      * Обработать изменение статуса оплаты партнёром для закупки.
      *
+     * ПРИМЕЧАНИЕ: Для заказов статус оплаты партнёром не используется.
+     * Бонус переходит в "Доступно" только при доставке заказа.
+     * Этот метод оставлен для обратной совместимости, но не выполняет действий.
+     *
      * @param Order $order
      * @param string $newStatusCode
      * @return void
+     * @deprecated Для заказов используйте handleOrderStatusChange
      */
     public function handleOrderPartnerPaymentStatusChange(Order $order, string $newStatusCode): void
+    {
+        // Для заказов статус оплаты партнёром не влияет на бонусы.
+        // Бонус переходит в "Доступно" только при доставке заказа (handleOrderStatusChange).
+    }
+
+    /**
+     * Обработать изменение статуса договора.
+     *
+     * Проверяет, нужно ли перевести бонус в статус "Доступно к выплате"
+     * при переходе договора в статус "Заключён".
+     *
+     * @param Contract $contract
+     * @param string $newStatusSlug
+     * @return void
+     */
+    public function handleContractStatusChange(Contract $contract, string $newStatusSlug): void
+    {
+        $bonus = $contract->agentBonus;
+        if (!$bonus) {
+            return;
+        }
+
+        // Если договор перешёл в статус "Заключён"
+        if ($newStatusSlug === 'signed') {
+            // Проверяем все условия для перевода бонуса в "Доступно"
+            $partnerPaymentStatus = $contract->partnerPaymentStatus;
+            $isPartnerPaid = $partnerPaymentStatus && $partnerPaymentStatus->code === 'paid';
+            $isContractActive = $contract->is_active === true;
+
+            if ($isPartnerPaid && $isContractActive) {
+                $this->markBonusAsAvailable($bonus);
+            }
+        } else {
+            // Если договор перешёл из "Заключён" в другой статус,
+            // откатываем бонус в "Начислено" (если он был "Доступно")
+            $currentBonusStatus = $bonus->status;
+            if ($currentBonusStatus && $currentBonusStatus->code === 'available_for_payment') {
+                $this->revertBonusToAccrued($bonus);
+            }
+        }
+    }
+
+    /**
+     * Обработать изменение is_active для договора.
+     *
+     * @param Contract $contract
+     * @return void
+     */
+    public function handleContractActiveChange(Contract $contract): void
+    {
+        $bonus = $contract->agentBonus;
+        if (!$bonus) {
+            return;
+        }
+
+        if ($contract->is_active) {
+            // Договор стал активным - проверяем все условия
+            $contractStatus = $contract->status;
+            $isContractSigned = $contractStatus && $contractStatus->slug === 'signed';
+            $partnerPaymentStatus = $contract->partnerPaymentStatus;
+            $isPartnerPaid = $partnerPaymentStatus && $partnerPaymentStatus->code === 'paid';
+
+            if ($isContractSigned && $isPartnerPaid) {
+                $this->markBonusAsAvailable($bonus);
+            }
+        } else {
+            // Договор стал неактивным - откатываем бонус
+            $currentBonusStatus = $bonus->status;
+            if ($currentBonusStatus && $currentBonusStatus->code === 'available_for_payment') {
+                $this->revertBonusToAccrued($bonus);
+            }
+        }
+    }
+
+    /**
+     * Обработать изменение статуса заказа.
+     *
+     * Бонус переходит в статус "Доступно к выплате" при:
+     * - Статус заказа = 'delivered' (Доставлен)
+     * - Заказ активен (is_active = true)
+     *
+     * Для заказов НЕ требуется проверка оплаты партнёром,
+     * так как компания сама организует продажу заказов.
+     *
+     * @param Order $order
+     * @param string $newStatusSlug
+     * @return void
+     */
+    public function handleOrderStatusChange(Order $order, string $newStatusSlug): void
     {
         $bonus = $order->agentBonus;
         if (!$bonus) {
             return;
         }
 
-        if ($newStatusCode === 'paid') {
-            $this->markBonusAsAvailable($bonus);
-        } elseif ($newStatusCode === 'pending') {
-            $this->revertBonusToAccrued($bonus);
+        // Если заказ перешёл в статус "Доставлен"
+        if ($newStatusSlug === 'delivered') {
+            $isOrderActive = $order->is_active === true;
+
+            if ($isOrderActive) {
+                $this->markBonusAsAvailable($bonus);
+            }
+        } else {
+            // Если заказ перешёл из "Доставлен" в другой статус,
+            // откатываем бонус в "Начислено" (если он был "Доступно")
+            $currentBonusStatus = $bonus->status;
+            if ($currentBonusStatus && $currentBonusStatus->code === 'available_for_payment') {
+                $this->revertBonusToAccrued($bonus);
+            }
+        }
+    }
+
+    /**
+     * Обработать изменение is_active для заказа.
+     *
+     * Для заказов НЕ требуется проверка оплаты партнёром.
+     * Бонус доступен к выплате если заказ доставлен и активен.
+     *
+     * @param Order $order
+     * @return void
+     */
+    public function handleOrderActiveChange(Order $order): void
+    {
+        $bonus = $order->agentBonus;
+        if (!$bonus) {
+            return;
+        }
+
+        if ($order->is_active) {
+            // Заказ стал активным - проверяем только статус доставки
+            $orderStatus = $order->status;
+            $isOrderDelivered = $orderStatus && $orderStatus->slug === 'delivered';
+
+            if ($isOrderDelivered) {
+                $this->markBonusAsAvailable($bonus);
+            }
+        } else {
+            // Заказ стал неактивным - откатываем бонус
+            $currentBonusStatus = $bonus->status;
+            if ($currentBonusStatus && $currentBonusStatus->code === 'available_for_payment') {
+                $this->revertBonusToAccrued($bonus);
+            }
         }
     }
 

@@ -22,6 +22,10 @@ type Order {
     partner_payment_status_id: ID!
     "Статус оплаты партнёром"
     partnerPaymentStatus: PartnerPaymentStatus @belongsTo
+    "ID статуса заказа"
+    status_id: ID
+    "Статус заказа"
+    status: OrderStatus @belongsTo
     created_at: DateTime!
     updated_at: DateTime!
     company: Company! @belongsTo
@@ -108,6 +112,19 @@ input UpdateOrderPositionInput {
     is_urgent: Boolean
 }
 
+"Статус заказа"
+type OrderStatus {
+    id: ID!
+    value: String!
+    slug: String!
+    description: String
+    color: String
+    icon: String
+    sort_order: Int!
+    is_default: Boolean!
+    is_active: Boolean!
+}
+
 extend type Query {
     "Get all orders"
     orders: [Order!]! @paginate
@@ -126,6 +143,9 @@ extend type Query {
 
     "Get active orders"
     activeOrders(is_active: Boolean! @where): [Order!]! @paginate
+
+    "Get all order statuses"
+    orderStatuses: [OrderStatus!]! @all(model: "App\\Models\\OrderStatus", scopes: ["active"])
 }
 
 input CreateSingleOrderPositionInput {
@@ -146,10 +166,15 @@ extend type Mutation {
     createOrder(input: CreateOrderInput!): Order! @field(resolver: "App\\GraphQL\\Mutations\\CreateOrder")
 
     "Update an existing order"
-    updateOrder(input: UpdateOrderInput! @spread): Order! @update(model: "App\\Models\\Order")
+    updateOrder(input: UpdateOrderInput!): Order!
+        @field(resolver: "App\\GraphQL\\Mutations\\UpdateOrder")
 
     "Delete an order"
     deleteOrder(id: ID! @whereKey): Order! @delete(model: "App\\Models\\Order")
+
+    "Update order status"
+    updateOrderStatus(order_id: ID!, status_slug: String!): Order!
+        @field(resolver: "App\\GraphQL\\Mutations\\UpdateOrderStatus")
 
     "Create a new order position"
     createOrderPosition(input: CreateSingleOrderPositionInput! @spread): OrderPosition! @create(model: "App\\Models\\OrderPosition")

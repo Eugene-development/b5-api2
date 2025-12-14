@@ -49,6 +49,22 @@ type AgentBonusStats {
     total_paid: Float!
 }
 
+"Статистика бонусов для админки"
+type AdminBonusStats {
+    "Всего начислено (сумма всех бонусов)"
+    total_accrued: Float!
+    "Доступно к выплате"
+    total_available: Float!
+    "Выплачено"
+    total_paid: Float!
+    "Ожидает (начислено, но не доступно)"
+    total_pending: Float!
+    "Количество бонусов по договорам"
+    contracts_count: Int!
+    "Количество бонусов по заказам"
+    orders_count: Int!
+}
+
 "Фильтры для бонусов агента"
 input AgentBonusFilters {
     "Код статуса (accrued, available_for_payment, paid)"
@@ -59,6 +75,8 @@ input AgentBonusFilters {
     date_from: DateTime
     "Дата начисления до"
     date_to: DateTime
+    "ID агента (для админки)"
+    agent_id: ID
 }
 
 
@@ -80,6 +98,14 @@ extend type Query {
 
     "Справочник статусов оплаты партнёром"
     partnerPaymentStatuses: [PartnerPaymentStatus!]! @all(model: "App\\Models\\PartnerPaymentStatus")
+
+    "Получить все бонусы для админки"
+    adminBonuses(filters: AgentBonusFilters): [AgentBonus!]!
+        @field(resolver: "App\\GraphQL\\Queries\\AdminBonusesQuery")
+
+    "Получить статистику бонусов для админки"
+    adminBonusStats(filters: AgentBonusFilters): AdminBonusStats!
+        @field(resolver: "App\\GraphQL\\Queries\\AdminBonusStatsQuery")
 }
 
 extend type Mutation {
@@ -90,4 +116,8 @@ extend type Mutation {
     "Обновить статус оплаты партнёром для закупки"
     updateOrderPartnerPaymentStatus(order_id: ID!, status_code: String!): Order!
         @field(resolver: "App\\GraphQL\\Mutations\\UpdateOrderPartnerPaymentStatus")
+
+    "Обновить статус бонуса"
+    updateBonusStatus(bonus_id: ID!, status_code: String!): AgentBonus!
+        @field(resolver: "App\\GraphQL\\Mutations\\UpdateBonusStatus")
 }
