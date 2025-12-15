@@ -6,6 +6,7 @@ namespace App\GraphQL\Mutations;
 
 use App\Models\Order;
 use App\Models\OrderPosition;
+use App\Models\OrderStatus;
 use App\Services\BonusService;
 use GraphQL\Error\Error;
 use Illuminate\Support\Facades\DB;
@@ -72,6 +73,9 @@ final readonly class CreateOrder
                 }
             }
 
+            // Get default order status
+            $defaultStatus = OrderStatus::getDefault();
+
             // Create the order (order_number will be auto-generated if not provided)
             $order = Order::create([
                 'value' => $input['value'],
@@ -86,6 +90,7 @@ final readonly class CreateOrder
                 'agent_percentage' => $input['agent_percentage'] ?? 5.00,
                 'curator_percentage' => $input['curator_percentage'] ?? 5.00,
                 'partner_payment_status_id' => 1, // pending по умолчанию
+                'status_id' => $defaultStatus?->id, // Статус "Сформирован" по умолчанию
             ]);
 
             // Create order positions

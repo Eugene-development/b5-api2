@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\GraphQL\Mutations;
 
 use App\Models\Contract;
+use App\Models\ContractStatus;
 use App\Services\BonusService;
 use Illuminate\Support\Facades\DB;
 
@@ -22,6 +23,9 @@ final readonly class CreateContract
         $input = $args['input'] ?? $args;
 
         return DB::transaction(function () use ($input) {
+            // Get default contract status
+            $defaultStatus = ContractStatus::getDefault();
+
             // Создаём договор (contract_number генерируется автоматически, если не указан)
             $contract = Contract::create([
                 'project_id' => $input['project_id'],
@@ -35,6 +39,7 @@ final readonly class CreateContract
                 'curator_percentage' => $input['curator_percentage'] ?? 2.00,
                 'is_active' => $input['is_active'] ?? true,
                 'partner_payment_status_id' => 1, // pending по умолчанию
+                'status_id' => $defaultStatus?->id, // Статус "В обработке" по умолчанию
             ]);
 
             // Автоматически создаём бонус агента
