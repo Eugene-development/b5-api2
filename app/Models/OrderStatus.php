@@ -61,4 +61,15 @@ class OrderStatus extends Model
             ->where('is_active', true)
             ->first();
     }
+
+    /**
+     * Scope a query to only include active statuses.
+     *
+     * @param  \Illuminate\Database\Eloquent\Builder  $query
+     * @return \Illuminate\Database\Eloquent\Builder
+     */
+    public function scopeActive($query)
+    {
+        return $query->where('is_active', true)->orderBy('sort_order');
+    }
 }
