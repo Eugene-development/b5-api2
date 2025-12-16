@@ -25,30 +25,47 @@ class UpdateContractStatus
             'status_slug' => $statusSlug,
         ]);
 
-        // Find the contract
-        $contract = Contract::findOrFail($contractId);
+        try {
+            // Find the contract
+            $contract = Contract::findOrFail($contractId);
 
-        // Find the status by slug
-        $status = ContractStatus::where('slug', $statusSlug)
-            ->where('is_active', true)
-            ->firstOrFail();
+            // Find the status by slug
+            $status = ContractStatus::where('slug', $statusSlug)
+                ->where('is_active', true)
+                ->firstOrFail();
 
-        // Update the contract status
-        $contract->status_id = $status->id;
-        $contract->save();
+            // Update the contract status
+            $contract->status_id = $status->id;
+            $contract->save();
 
-        // Reload with relationships
-        $contract->load(['project', 'company', 'status', 'partnerPaymentStatus', 'agentBonus']);
+            // Reload with relationships (only existing ones)
+            $contract->load(['project', 'company', 'status']);
 
-        // Обновляем статус бонуса при изменении статуса договора
-        $bonusService = app(BonusService::class);
-        $bonusService->handleContractStatusChange($contract, $statusSlug);
+            // Обновляем статус бонуса при изменении статуса договора
+            try {
+                $bonusService = app(BonusService::class);
+                $bonusService->handleContractStatusChange($contract, $statusSlug);
+            } catch (\Throwable $e) {
+                Log::warning('UpdateContractStatus: BonusService error (non-critical)', [
+                    'contract_id' => $contract->id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
 
-        Log::info('UpdateContractStatus: Success', [
-            'contract_id' => $contract->id,
-            'new_status' => $status->value,
-        ]);
+            Log::info('UpdateContractStatus: Success', [
+                'contract_id' => $contract->id,
+                'new_status' => $status->value,
+            ]);
 
-        return $contract;
+            return $contract;
+        } catch (\Throwable $e) {
+            Log::error('UpdateContractStatus: Failed', [
+                'contract_id' => $contractId,
+                'status_slug' => $statusSlug,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+            throw $e;
+        }
     }
 }

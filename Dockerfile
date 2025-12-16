@@ -34,6 +34,9 @@ COPY --chown=laravel:laravel . .
 # Copy composer dependencies
 COPY --from=composer-build --chown=laravel:laravel /app/vendor ./vendor
 
+# Clear cached service providers (may contain dev dependencies)
+RUN rm -f bootstrap/cache/packages.php bootstrap/cache/services.php
+
 # Set production permissions
 RUN chmod -R 755 /var/www \
     && chown -R laravel:laravel /var/www \
