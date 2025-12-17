@@ -4,8 +4,6 @@ namespace App\GraphQL\Mutations;
 
 use App\Models\Order;
 use App\Models\OrderStatus;
-use App\Services\BonusService;
-use Illuminate\Support\Facades\Log;
 
 class UpdateOrderStatus
 {
@@ -20,11 +18,6 @@ class UpdateOrderStatus
         $orderId = $args['order_id'];
         $statusSlug = $args['status_slug'];
 
-        Log::info('UpdateOrderStatus: Starting', [
-            'order_id' => $orderId,
-            'status_slug' => $statusSlug,
-        ]);
-
         // Find the order
         $order = Order::findOrFail($orderId);
 
@@ -33,21 +26,11 @@ class UpdateOrderStatus
             ->where('is_active', true)
             ->firstOrFail();
 
-        // Update the order status
-        $order->status_id = $status->id;
-        $order->save();
+        // Update the order status directly without triggering model events
+        Order::where('id', $orderId)->update(['status_id' => $status->id]);
 
-        // Reload with relationships
-        $order->load(['project', 'company', 'status', 'partnerPaymentStatus', 'agentBonus']);
-
-        // Обновляем статус бонуса при изменении статуса заказа
-        $bonusService = app(BonusService::class);
-        $bonusService->handleOrderStatusChange($order, $statusSlug);
-
-        Log::info('UpdateOrderStatus: Success', [
-            'order_id' => $order->id,
-            'new_status' => $status->value,
-        ]);
+        // Reload the order with fresh data
+        $order = Order::with(['project', 'company', 'status'])->findOrFail($orderId);
 
         return $order;
     }
