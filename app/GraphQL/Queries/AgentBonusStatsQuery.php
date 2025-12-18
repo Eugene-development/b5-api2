@@ -18,8 +18,17 @@ final readonly class AgentBonusStatsQuery
      */
     public function __invoke(null $_, array $args): array
     {
-        $user = Auth::user();
+        // Use 'api' guard explicitly for JWT authentication
+        $user = Auth::guard('api')->user();
+
+        // Debug logging
+        \Illuminate\Support\Facades\Log::info('AgentBonusStatsQuery: Auth check', [
+            'has_user' => $user !== null,
+            'user_id' => $user?->id,
+        ]);
+
         if (!$user) {
+            \Illuminate\Support\Facades\Log::warning('AgentBonusStatsQuery: No authenticated user found via api guard');
             return [
                 'total_accrued' => 0,
                 'total_available' => 0,

@@ -18,8 +18,10 @@ final readonly class AgentPaymentsQuery
      */
     public function __invoke(null $_, array $args)
     {
-        $user = Auth::user();
+        // Use 'api' guard explicitly for JWT authentication
+        $user = Auth::guard('api')->user();
         if (!$user) {
+            \Illuminate\Support\Facades\Log::warning('AgentPaymentsQuery: No authenticated user found via api guard');
             return collect([]);
         }
 
