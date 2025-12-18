@@ -31,7 +31,7 @@ input CreateContractInput {
     contract_date: Date! @rules(apply: ["required", "date"])
     planned_completion_date: Date! @rules(apply: ["required", "date", "after_or_equal:contract_date"])
     actual_completion_date: Date @rules(apply: ["nullable", "date"])
-    contract_amount: Float @rules(apply: ["nullable", "numeric", "min:0"])
+    contract_amount: Float! @rules(apply: ["required", "numeric", "min:0"])
     agent_percentage: Float! @rules(apply: ["required", "numeric", "min:0", "max:100"])
     curator_percentage: Float! @rules(apply: ["required", "numeric", "min:0", "max:100"])
     is_active: Boolean = true

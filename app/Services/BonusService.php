@@ -45,7 +45,8 @@ class BonusService
     public function createBonusForContract(Contract $contract): ?AgentBonus
     {
         // Проверяем условия создания бонуса
-        if (!$contract->is_active || !$contract->contract_amount || $contract->contract_amount <= 0) {
+        // Сумма 0 допустима - бонус будет создан с нулевой комиссией
+        if (!$contract->is_active || $contract->contract_amount === null) {
             return null;
         }
 

@@ -6,7 +6,6 @@ namespace App\GraphQL\Mutations;
 
 use App\Models\Contract;
 use App\Models\ContractStatus;
-use App\Services\BonusService;
 use Illuminate\Support\Facades\DB;
 
 final readonly class CreateContract
@@ -42,9 +41,8 @@ final readonly class CreateContract
                 'status_id' => $defaultStatus?->id, // Статус "В обработке" по умолчанию
             ]);
 
-            // Автоматически создаём бонус агента
-            $bonusService = app(BonusService::class);
-            $bonusService->createBonusForContract($contract);
+            // Бонус агента создаётся автоматически в модели Contract (событие created)
+            // Не создаём здесь повторно, чтобы избежать дублирования
 
             // Load relationships and return
             return $contract->load(['project', 'company']);
