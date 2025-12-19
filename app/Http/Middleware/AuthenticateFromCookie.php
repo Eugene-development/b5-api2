@@ -20,14 +20,22 @@ class AuthenticateFromCookie
     {
         // Check if Authorization header already exists
         $authHeader = $request->header('Authorization');
+        $cookieToken = $request->cookie('b5_auth_token');
+
+        \Illuminate\Support\Facades\Log::info('AuthenticateFromCookie middleware', [
+            'has_auth_header' => !empty($authHeader),
+            'auth_header_preview' => $authHeader ? substr($authHeader, 0, 30) . '...' : null,
+            'has_cookie' => !empty($cookieToken),
+            'cookie_preview' => $cookieToken ? substr($cookieToken, 0, 30) . '...' : null,
+            'path' => $request->path(),
+        ]);
 
         // If no Authorization header, try to get token from cookie
         if (!$authHeader || !str_starts_with($authHeader, 'Bearer ')) {
-            $token = $request->cookie('b5_auth_token');
-
-            if ($token) {
+            if ($cookieToken) {
                 // Set the token in the request for JWT authentication
-                $request->headers->set('Authorization', 'Bearer ' . $token);
+                $request->headers->set('Authorization', 'Bearer ' . $cookieToken);
+                \Illuminate\Support\Facades\Log::info('AuthenticateFromCookie: Set Authorization from cookie');
             }
         }
 
