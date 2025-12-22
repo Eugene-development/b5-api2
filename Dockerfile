@@ -21,9 +21,12 @@ RUN chmod +x /entrypoint.sh
 # Указываем entrypoint
 ENTRYPOINT ["/entrypoint.sh"]
 
-# Create laravel user
-RUN addgroup -g 1000 -S laravel \
-    && adduser -u 1000 -S laravel -G laravel
+# Create www-data user and laravel group for compatibility
+RUN addgroup -g 82 -S www-data 2>/dev/null || true \
+    && adduser -u 82 -D -S -G www-data www-data 2>/dev/null || true \
+    && addgroup -g 1000 -S laravel \
+    && adduser -u 1000 -S laravel -G laravel \
+    && adduser www-data laravel
 
 # Set working directory
 WORKDIR /var/www
@@ -59,12 +62,12 @@ RUN echo 'opcache.enable=1' > /usr/local/etc/php/conf.d/production.ini \
     && echo 'post_max_size=50M' >> /usr/local/etc/php/conf.d/production.ini \
     && echo 'upload_max_filesize=50M' >> /usr/local/etc/php/conf.d/production.ini
 
-# Configure PHP-FPM to run properly with laravel user but allow logging
+# Configure PHP-FPM to run with www-data user for nginx compatibility
 RUN echo '[global]' > /usr/local/etc/php-fpm.d/docker.conf \
     && echo 'error_log = /proc/self/fd/2' >> /usr/local/etc/php-fpm.d/docker.conf \
     && echo '[www]' >> /usr/local/etc/php-fpm.d/docker.conf \
-    && echo 'user = laravel' >> /usr/local/etc/php-fpm.d/docker.conf \
-    && echo 'group = laravel' >> /usr/local/etc/php-fpm.d/docker.conf \
+    && echo 'user = www-data' >> /usr/local/etc/php-fpm.d/docker.conf \
+    && echo 'group = www-data' >> /usr/local/etc/php-fpm.d/docker.conf \
     && echo 'listen = 9000' >> /usr/local/etc/php-fpm.d/docker.conf \
     && echo 'listen.mode = 0666' >> /usr/local/etc/php-fpm.d/docker.conf \
     && echo 'pm = dynamic' >> /usr/local/etc/php-fpm.d/docker.conf \
