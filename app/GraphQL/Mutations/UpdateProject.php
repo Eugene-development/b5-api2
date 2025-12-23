@@ -67,10 +67,42 @@ final class UpdateProject
         // If status is changing, check if we need to create curator relationship
         if ($statusChanging && $newStatusId) {
             $this->handleStatusChange($project, $oldStatusId, $newStatusId);
+        } else {
+            // Even if status is not changing, check if curator needs to be assigned
+            // This handles the case when status was set before the curator logic was implemented
+            $this->ensureCuratorAssigned($project);
         }
 
         // Reload project with relationships
         return $project->fresh(['status', 'agent', 'client', 'users', 'curator', 'projectUsers']);
+    }
+
+    /**
+     * Ensure curator is assigned if project has curator-processing status but no curator
+     */
+    private function ensureCuratorAssigned(Project $project): void
+    {
+        // Get current status
+        $status = $project->status;
+        if (!$status || $status->slug !== 'curator-processing') {
+            return;
+        }
+
+        // Check if curator already exists
+        $existingCurator = ProjectUser::where('project_id', $project->id)
+            ->where('role', ProjectUser::ROLE_CURATOR)
+            ->first();
+
+        if ($existingCurator) {
+            return; // Curator already assigned
+        }
+
+        Log::info('UpdateProject: Project has curator-processing status but no curator, assigning...', [
+            'project_id' => $project->id,
+        ]);
+
+        // Assign current user as curator
+        $this->assignCurator($project);
     }
 
     /**
