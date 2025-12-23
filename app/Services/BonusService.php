@@ -181,7 +181,21 @@ class BonusService
      */
     public function getAgentStats(int $agentId, ?array $filters = null): array
     {
-        $query = AgentBonus::where('agent_id', $agentId);
+        $query = AgentBonus::where('agent_id', $agentId)
+            ->with(['contract.status', 'order']);
+
+        // Фильтруем бонусы: показываем только те, где договор в статусе "Заключён" или далее
+        // (т.е. исключаем договоры в статусе "Обработка" / preparing)
+        $query->where(function ($q) {
+            $q->whereHas('contract', function ($contractQuery) {
+                $contractQuery->whereHas('status', function ($statusQuery) {
+                    // Исключаем статус "Обработка" (preparing)
+                    $statusQuery->where('slug', '!=', 'preparing');
+                });
+            })
+            // Или это бонус от заказа (не от договора)
+            ->orWhereNotNull('order_id');
+        });
 
         // Применяем фильтры если указаны
         if ($filters) {

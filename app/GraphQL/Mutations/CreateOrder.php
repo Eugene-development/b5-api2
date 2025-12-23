@@ -76,6 +76,32 @@ final readonly class CreateOrder
             // Get default order status
             $defaultStatus = OrderStatus::getDefault();
 
+            // Log for debugging
+            \Log::info('CreateOrder: Getting default status', [
+                'default_status_found' => $defaultStatus !== null,
+                'default_status_id' => $defaultStatus?->id,
+                'default_status_value' => $defaultStatus?->value,
+            ]);
+
+            // If no default status found, get the first active status or create error
+            if (!$defaultStatus) {
+                \Log::warning('CreateOrder: No default status found, trying first active');
+
+                $defaultStatus = OrderStatus::where('is_active', true)
+                    ->orderBy('sort_order')
+                    ->first();
+
+                if (!$defaultStatus) {
+                    \Log::error('CreateOrder: No active order status found in the system');
+                    throw new Error('No active order status found in the system');
+                }
+
+                \Log::info('CreateOrder: Using first active status', [
+                    'status_id' => $defaultStatus->id,
+                    'status_value' => $defaultStatus->value,
+                ]);
+            }
+
             // Create the order (order_number will be auto-generated if not provided)
             $order = Order::create([
                 'value' => $input['value'],
@@ -90,7 +116,13 @@ final readonly class CreateOrder
                 'agent_percentage' => $input['agent_percentage'] ?? 5.00,
                 'curator_percentage' => $input['curator_percentage'] ?? 5.00,
                 'partner_payment_status_id' => 1, // pending по умолчанию
-                'status_id' => $defaultStatus?->id, // Статус "Сформирован" по умолчанию
+                'status_id' => $defaultStatus->id, // Статус "Сформирован" по умолчанию
+            ]);
+
+            \Log::info('CreateOrder: Order created', [
+                'order_id' => $order->id,
+                'order_number' => $order->order_number,
+                'status_id' => $order->status_id,
             ]);
 
             // Create order positions
@@ -109,12 +141,11 @@ final readonly class CreateOrder
                 ]);
             }
 
-            // Автоматически создаём бонус агента
-            $bonusService = app(BonusService::class);
-            $bonusService->createBonusForOrder($order);
+            // Бонус создаётся автоматически в событии Order::created
+            // Не нужно создавать вручную, чтобы избежать дубликатов
 
             // Load relationships and return
-            return $order->load(['positions', 'company', 'project']);
+            return $order->load(['positions', 'company', 'project', 'status']);
         });
     }
 }
