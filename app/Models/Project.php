@@ -84,7 +84,52 @@ class Project extends Model
     {
         return $this->belongsToMany(User::class, 'project_user', 'project_id', 'user_id')
                     ->using(ProjectUser::class)
+                    ->withPivot('role')
                     ->withTimestamps();
+    }
+
+    /**
+     * Get the curator of this project.
+     */
+    public function curator(): BelongsToMany
+    {
+        return $this->belongsToMany(User::class, 'project_user', 'project_id', 'user_id')
+                    ->using(ProjectUser::class)
+                    ->wherePivot('role', ProjectUser::ROLE_CURATOR)
+                    ->withPivot('role')
+                    ->withTimestamps();
+    }
+
+    /**
+     * Get the designers of this project.
+     */
+    public function designers(): BelongsToMany
+    {
+        return $this->belongsToMany(User::class, 'project_user', 'project_id', 'user_id')
+                    ->using(ProjectUser::class)
+                    ->wherePivot('role', ProjectUser::ROLE_DESIGNER)
+                    ->withPivot('role')
+                    ->withTimestamps();
+    }
+
+    /**
+     * Get the managers of this project.
+     */
+    public function managers(): BelongsToMany
+    {
+        return $this->belongsToMany(User::class, 'project_user', 'project_id', 'user_id')
+                    ->using(ProjectUser::class)
+                    ->wherePivot('role', ProjectUser::ROLE_MANAGER)
+                    ->withPivot('role')
+                    ->withTimestamps();
+    }
+
+    /**
+     * Get all project users with roles (for GraphQL).
+     */
+    public function projectUsers(): HasMany
+    {
+        return $this->hasMany(ProjectUser::class, 'project_id');
     }
 
     /**

@@ -10,6 +10,14 @@ class ProjectUser extends Pivot
     use HasUlids;
 
     /**
+     * Константы ролей пользователей в проекте
+     */
+    const ROLE_AGENT = 'agent';
+    const ROLE_CURATOR = 'curator';
+    const ROLE_DESIGNER = 'designer';
+    const ROLE_MANAGER = 'manager';
+
+    /**
      * The table associated with the model.
      *
      * @var string
@@ -24,6 +32,7 @@ class ProjectUser extends Pivot
     protected $fillable = [
         'user_id',
         'project_id',
+        'role',
     ];
 
     /**
@@ -50,5 +59,26 @@ class ProjectUser extends Pivot
     public function project()
     {
         return $this->belongsTo(Project::class);
+    }
+
+    /**
+     * Получить список доступных ролей
+     */
+    public static function getAvailableRoles(): array
+    {
+        return [
+            self::ROLE_AGENT,
+            self::ROLE_CURATOR,
+            self::ROLE_DESIGNER,
+            self::ROLE_MANAGER,
+        ];
+    }
+
+    /**
+     * Проверить, является ли роль валидной
+     */
+    public static function isValidRole(string $role): bool
+    {
+        return in_array($role, self::getAvailableRoles());
     }
 }

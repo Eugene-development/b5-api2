@@ -17,7 +17,15 @@ final readonly class AdminBonusesQuery
      */
     public function __invoke(null $_, array $args)
     {
-        $query = AgentBonus::with(['status', 'contract', 'order', 'agent']);
+        $query = AgentBonus::with([
+            'status',
+            'contract.status',
+            'contract.partnerPaymentStatus',
+            'contract.project.users',
+            'order.partnerPaymentStatus',
+            'order.project.users',
+            'agent'
+        ]);
 
         // Применяем фильтры
         $filters = $args['filters'] ?? [];

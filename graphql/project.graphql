@@ -33,6 +33,14 @@ type Project {
     client: Client @belongsTo(foreignKey: "client_id")
     status: ProjectStatusType @belongsTo(foreignKey: "status_id")
     users: [User!] @belongsToMany(relation: "users")
+    "Куратор проекта"
+    curator: [User!] @belongsToMany(relation: "curator")
+    "Дизайнеры проекта"
+    designers: [User!] @belongsToMany(relation: "designers")
+    "Менеджеры проекта"
+    managers: [User!] @belongsToMany(relation: "managers")
+    "Участники проекта с ролями"
+    projectUsers: [ProjectUser!] @hasMany(relation: "projectUsers")
     contracts: [Contract!] @hasMany
     "Закупки проекта"
     orders: [Order!] @hasMany
@@ -132,6 +140,8 @@ type ProjectUser {
     id: ID!
     user_id: ID!
     project_id: ID!
+    role: String!
+    user: User @belongsTo
     created_at: DateTime!
     updated_at: DateTime!
 }
@@ -141,13 +151,13 @@ extend type Mutation {
     createProject(input: CreateProjectInput! @spread): Project!
 
     "Update an existing project"
-    updateProject(input: UpdateProjectInput! @spread): Project! @update
+    updateProject(input: UpdateProjectInput! @spread): Project! @field(resolver: "App\\GraphQL\\Mutations\\UpdateProject")
 
     "Delete a project"
     deleteProject(id: ID! @whereKey): Project! @delete
 
-    "Accept a project (link user to project)"
-    acceptProject(projectId: ID!, userId: ID!, statusId: ID): ProjectUser! @field(resolver: "App\\GraphQL\\Mutations\\AcceptProject")
+    "Accept a project (link user to project with role)"
+    acceptProject(projectId: ID!, userId: ID!, statusId: ID, role: String): ProjectUser! @field(resolver: "App\\GraphQL\\Mutations\\AcceptProject")
 
     "Update a client"
     updateClient(input: UpdateClientInput! @spread): Client! @update(model: "App\\Models\\Client")
