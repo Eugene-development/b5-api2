@@ -114,6 +114,7 @@ class Order extends Model
         'agent_bonus',
         'curator_bonus',
         'partner_payment_status_id',
+        'partner_payment_date',
         'status_id',
     ];
 

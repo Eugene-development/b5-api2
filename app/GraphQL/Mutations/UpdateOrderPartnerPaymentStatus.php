@@ -32,6 +32,15 @@ final readonly class UpdateOrderPartnerPaymentStatus
         return DB::transaction(function () use ($orderId, $status, $statusCode) {
             $order = Order::findOrFail($orderId);
             $order->partner_payment_status_id = $status->id;
+
+            // Устанавливаем дату оплаты при смене статуса на "paid"
+            if ($statusCode === 'paid') {
+                $order->partner_payment_date = now()->toDateString();
+            } elseif ($statusCode === 'pending') {
+                // Сбрасываем дату при возврате в статус "ожидание"
+                $order->partner_payment_date = null;
+            }
+
             $order->save();
 
             // Обновляем статус бонуса

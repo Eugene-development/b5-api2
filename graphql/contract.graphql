@@ -19,6 +19,7 @@ type Contract {
     agent_bonus: Float
     "Рассчитанный бонус куратора (contract_amount × curator_percentage / 100)"
     curator_bonus: Float
+    partner_payment_date: Date
     is_active: Boolean!
     created_at: DateTime!
     updated_at: DateTime!

@@ -32,6 +32,15 @@ final readonly class UpdateContractPartnerPaymentStatus
         return DB::transaction(function () use ($contractId, $status, $statusCode) {
             $contract = Contract::findOrFail($contractId);
             $contract->partner_payment_status_id = $status->id;
+
+            // Устанавливаем дату оплаты при смене статуса на "paid"
+            if ($statusCode === 'paid') {
+                $contract->partner_payment_date = now()->toDateString();
+            } elseif ($statusCode === 'pending') {
+                // Сбрасываем дату при возврате в статус "ожидание"
+                $contract->partner_payment_date = null;
+            }
+
             $contract->save();
 
             // Обновляем статус бонуса

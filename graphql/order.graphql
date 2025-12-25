@@ -22,6 +22,8 @@ type Order {
     partner_payment_status_id: ID!
     "Статус оплаты партнёром"
     partnerPaymentStatus: PartnerPaymentStatus @belongsTo
+    "Дата оплаты партнёром"
+    partner_payment_date: Date
     "ID статуса заказа"
     status_id: ID
     "Статус заказа"

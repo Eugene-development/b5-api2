@@ -133,6 +133,7 @@ class Contract extends Model
         'curator_percentage',
         'agent_bonus',
         'curator_bonus',
+        'partner_payment_date',
         'is_active',
         'status_id',
     ];
