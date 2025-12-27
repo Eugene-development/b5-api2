@@ -67,7 +67,7 @@ class BonusService
             'contract_id' => $contract->id,
             'order_id' => null,
             'commission_amount' => $commissionAmount,
-            'status_id' => BonusStatus::accruedId(),
+            'status_id' => BonusStatus::pendingId(),
             'accrued_at' => now(),
             'available_at' => null,
             'paid_at' => null,
@@ -103,7 +103,7 @@ class BonusService
             'contract_id' => null,
             'order_id' => $order->id,
             'commission_amount' => $commissionAmount,
-            'status_id' => BonusStatus::accruedId(),
+            'status_id' => BonusStatus::pendingId(),
             'accrued_at' => now(),
             'available_at' => null,
             'paid_at' => null,
@@ -216,27 +216,22 @@ class BonusService
 
         $bonuses = $query->get();
 
-        $totalAccrued = 0.0;
-        $totalAvailable = 0.0;
+        $totalPending = 0.0;
         $totalPaid = 0.0;
 
         foreach ($bonuses as $bonus) {
             $amount = (float) $bonus->commission_amount;
             $statusCode = $bonus->status->code ?? '';
 
-            // Все бонусы входят в "начислено"
-            $totalAccrued += $amount;
-
-            if ($statusCode === 'available_for_payment') {
-                $totalAvailable += $amount;
+            if ($statusCode === 'pending') {
+                $totalPending += $amount;
             } elseif ($statusCode === 'paid') {
                 $totalPaid += $amount;
             }
         }
 
         return [
-            'total_accrued' => round($totalAccrued, 2),
-            'total_available' => round($totalAvailable, 2),
+            'total_pending' => round($totalPending, 2),
             'total_paid' => round($totalPaid, 2),
         ];
     }

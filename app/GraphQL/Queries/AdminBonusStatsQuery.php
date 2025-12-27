@@ -36,23 +36,16 @@ final readonly class AdminBonusStatsQuery
         }
 
         // Get status IDs
-        $accruedStatus = BonusStatus::where('code', 'accrued')->first();
-        $availableStatus = BonusStatus::where('code', 'available_for_payment')->first();
+        $pendingStatus = BonusStatus::where('code', 'pending')->first();
         $paidStatus = BonusStatus::where('code', 'paid')->first();
 
         // Calculate totals
-        $totalAccrued = (clone $query)->sum('commission_amount');
-
-        $totalAvailable = (clone $query)
-            ->when($availableStatus, fn($q) => $q->where('status_id', $availableStatus->id))
+        $totalPending = (clone $query)
+            ->when($pendingStatus, fn($q) => $q->where('status_id', $pendingStatus->id))
             ->sum('commission_amount');
 
         $totalPaid = (clone $query)
             ->when($paidStatus, fn($q) => $q->where('status_id', $paidStatus->id))
-            ->sum('commission_amount');
-
-        $totalPending = (clone $query)
-            ->when($accruedStatus, fn($q) => $q->where('status_id', $accruedStatus->id))
             ->sum('commission_amount');
 
         // Count by source type
@@ -60,10 +53,8 @@ final readonly class AdminBonusStatsQuery
         $ordersCount = (clone $query)->whereNotNull('order_id')->count();
 
         return [
-            'total_accrued' => (float) $totalAccrued,
-            'total_available' => (float) $totalAvailable,
-            'total_paid' => (float) $totalPaid,
             'total_pending' => (float) $totalPending,
+            'total_paid' => (float) $totalPaid,
             'contracts_count' => $contractsCount,
             'orders_count' => $ordersCount,
         ];

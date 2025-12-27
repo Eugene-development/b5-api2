@@ -9,7 +9,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 /**
  * Модель статуса бонуса.
  *
- * Статусы: accrued (начислено), available_for_payment (доступно к выплате), paid (выплачено)
+ * Статусы: pending (ожидание), paid (выплачено)
  */
 class BonusStatus extends Model
 {
@@ -40,19 +40,11 @@ class BonusStatus extends Model
     }
 
     /**
-     * Получить ID статуса "Начислено".
+     * Получить ID статуса "Ожидание".
      */
-    public static function accruedId(): int
+    public static function pendingId(): int
     {
-        return static::where('code', 'accrued')->value('id');
-    }
-
-    /**
-     * Получить ID статуса "Доступно к выплате".
-     */
-    public static function availableForPaymentId(): int
-    {
-        return static::where('code', 'available_for_payment')->value('id');
+        return static::where('code', 'pending')->value('id');
     }
 
     /**

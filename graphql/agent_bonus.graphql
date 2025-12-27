@@ -41,24 +41,18 @@ type AgentBonus {
 
 "Статистика бонусов агента"
 type AgentBonusStats {
-    "Всего начислено (сумма всех бонусов)"
-    total_accrued: Float!
-    "Доступно к выплате"
-    total_available: Float!
+    "Ожидание выплаты"
+    total_pending: Float!
     "Выплачено"
     total_paid: Float!
 }
 
 "Статистика бонусов для админки"
 type AdminBonusStats {
-    "Всего начислено (сумма всех бонусов)"
-    total_accrued: Float!
-    "Доступно к выплате"
-    total_available: Float!
+    "Ожидание выплаты"
+    total_pending: Float!
     "Выплачено"
     total_paid: Float!
-    "Ожидает (начислено, но не доступно)"
-    total_pending: Float!
     "Количество бонусов по договорам"
     contracts_count: Int!
     "Количество бонусов по заказам"
@@ -67,7 +61,7 @@ type AdminBonusStats {
 
 "Фильтры для бонусов агента"
 input AgentBonusFilters {
-    "Код статуса (accrued, available_for_payment, paid)"
+    "Код статуса (pending, paid)"
     status_code: String
     "Тип источника (contract, order)"
     source_type: String
