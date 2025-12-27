@@ -43,9 +43,9 @@ final readonly class UpdateContractPartnerPaymentStatus
 
             $contract->save();
 
-            // Обновляем статус бонуса
-            $bonusService = app(BonusService::class);
-            $bonusService->handleContractPartnerPaymentStatusChange($contract, $statusCode);
+            // ПРИМЕЧАНИЕ: С упрощением статусов бонусов, статус оплаты партнёром
+            // больше не влияет на статус бонуса. Бонус остаётся в статусе "Ожидание"
+            // до момента выплаты агенту.
 
             return $contract->load(['project', 'company', 'partnerPaymentStatus']);
         });

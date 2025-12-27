@@ -43,9 +43,9 @@ final readonly class UpdateOrderPartnerPaymentStatus
 
             $order->save();
 
-            // Обновляем статус бонуса
-            $bonusService = app(BonusService::class);
-            $bonusService->handleOrderPartnerPaymentStatusChange($order, $statusCode);
+            // ПРИМЕЧАНИЕ: С упрощением статусов бонусов, статус оплаты партнёром
+            // больше не влияет на статус бонуса. Бонус остаётся в статусе "Ожидание"
+            // до момента выплаты агенту.
 
             return $order->load(['project', 'company', 'partnerPaymentStatus']);
         });

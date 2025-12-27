@@ -72,11 +72,11 @@ class PaymentService
             throw new \InvalidArgumentException('Некоторые бонусы не найдены или не принадлежат агенту');
         }
 
-        $availableStatusId = BonusStatus::availableForPaymentId();
+        $pendingStatusId = BonusStatus::pendingId();
         foreach ($bonuses as $bonus) {
-            if ($bonus->status_id !== $availableStatusId) {
+            if ($bonus->status_id !== $pendingStatusId) {
                 throw new \InvalidArgumentException(
-                    "Бонус #{$bonus->id} не в статусе 'Доступно к выплате'"
+                    "Бонус #{$bonus->id} не в статусе 'Ожидание'"
                 );
             }
         }
@@ -131,7 +131,7 @@ class PaymentService
 
     /**
      * Отметить выплату как неудачную (статус = failed).
-     * Откатывает статусы всех связанных бонусов на "available_for_payment".
+     * Откатывает статусы всех связанных бонусов на "pending".
      *
      * @param AgentPayment $payment
      * @return AgentPayment
@@ -144,9 +144,9 @@ class PaymentService
             $payment->save();
 
             // Откатываем статусы всех связанных бонусов
-            $availableStatusId = BonusStatus::availableForPaymentId();
+            $pendingStatusId = BonusStatus::pendingId();
             foreach ($payment->bonuses as $bonus) {
-                $bonus->status_id = $availableStatusId;
+                $bonus->status_id = $pendingStatusId;
                 $bonus->paid_at = null;
                 $bonus->save();
             }
@@ -164,7 +164,7 @@ class PaymentService
     public function getAvailableBonusesForAgent(int $agentId)
     {
         return AgentBonus::where('agent_id', $agentId)
-            ->where('status_id', BonusStatus::availableForPaymentId())
+            ->where('status_id', BonusStatus::pendingId())
             ->with(['contract', 'order', 'status'])
             ->orderBy('accrued_at', 'desc')
             ->get();
