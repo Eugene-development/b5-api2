@@ -54,4 +54,28 @@ class BonusStatus extends Model
     {
         return static::where('code', 'paid')->value('id');
     }
+
+    /**
+     * Получить ID статуса "Начислено" (для обратной совместимости).
+     * После миграции на двухстатусную систему возвращает ID статуса 'pending'.
+     */
+    public static function accruedId(): int
+    {
+        // Сначала пробуем найти старый статус 'accrued'
+        $id = static::where('code', 'accrued')->value('id');
+        // Если не найден, используем новый статус 'pending'
+        return $id ?? static::pendingId();
+    }
+
+    /**
+     * Получить ID статуса "Доступно к выплате" (для обратной совместимости).
+     * После миграции на двухстатусную систему возвращает ID статуса 'pending'.
+     */
+    public static function availableForPaymentId(): int
+    {
+        // Сначала пробуем найти старый статус 'available_for_payment'
+        $id = static::where('code', 'available_for_payment')->value('id');
+        // Если не найден, используем новый статус 'pending'
+        return $id ?? static::pendingId();
+    }
 }
