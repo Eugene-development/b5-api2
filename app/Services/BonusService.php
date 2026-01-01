@@ -217,21 +217,29 @@ class BonusService
         $bonuses = $query->get();
 
         $totalPending = 0.0;
+        $totalAvailable = 0.0;
         $totalPaid = 0.0;
 
         foreach ($bonuses as $bonus) {
             $amount = (float) $bonus->commission_amount;
-            $statusCode = $bonus->status->code ?? '';
 
-            if ($statusCode === 'pending') {
+            // Ожидание: бонусы, которые начислены, но еще не доступны к выплате
+            if ($bonus->available_at === null && $bonus->paid_at === null) {
                 $totalPending += $amount;
-            } elseif ($statusCode === 'paid') {
+            }
+            // Доступно к выплате: бонусы, которые доступны, но еще не выплачены
+            elseif ($bonus->available_at !== null && $bonus->paid_at === null) {
+                $totalAvailable += $amount;
+            }
+            // Выплачено: бонусы, которые уже выплачены
+            elseif ($bonus->paid_at !== null) {
                 $totalPaid += $amount;
             }
         }
 
         return [
             'total_pending' => round($totalPending, 2),
+            'total_available' => round($totalAvailable, 2),
             'total_paid' => round($totalPaid, 2),
         ];
     }

@@ -139,12 +139,7 @@ class BonusCalculationService
 
         $ordersData = [];
         foreach ($orders as $order) {
-            // Фильтруем: отправляем на фронтенд только заказы со статусом "Сформирован" (formed)
-            $statusSlug = $order->status?->slug;
-            if ($statusSlug !== 'formed') {
-                continue;
-            }
-
+            // Отправляем все заказы на фронтенд, независимо от статуса
             $ordersData[] = [
                 'id' => $order->id,
                 'order_number' => $order->order_number,
