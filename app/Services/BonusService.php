@@ -15,7 +15,9 @@ use Illuminate\Support\Facades\DB;
  * - Создание бонуса при создании договора/закупки
  * - Пересчёт при изменении суммы/процента
  * - Переход в статус "доступно к выплате":
- *   - Для договоров: при переходе в статус "Выполнен" (completed) + is_active
+ *   - Для договоров: при выполнении ОБОИХ условий:
+ *     1. is_contract_completed: статус договора = 'completed' (Выполнен)
+ *     2. is_partner_paid: статус оплаты партнёром = 'paid' (Оплачено)
  *   - Для заказов: при доставке + is_active (без проверки оплаты партнёром)
  * - Откат статуса при изменении условий
  */
@@ -248,19 +250,23 @@ class BonusService
     /**
      * Обработать изменение статуса оплаты партнёром для договора.
      *
-     * ПРИМЕЧАНИЕ: Статус оплаты партнёром больше не влияет на доступность бонуса.
-     * Бонус становится доступным только при переходе договора в статус "Выполнен".
-     * Этот метод оставлен для обратной совместимости.
+     * Бонус становится доступным к выплате когда выполнены ОБА условия:
+     * - Статус договора = 'completed' (Выполнен)
+     * - Статус оплаты партнёром = 'paid' (Оплачено)
      *
      * @param Contract $contract
      * @param string $newStatusCode
      * @return void
-     * @deprecated Бонус теперь зависит только от статуса договора (completed)
      */
     public function handleContractPartnerPaymentStatusChange(Contract $contract, string $newStatusCode): void
     {
-        // Статус оплаты партнёром больше не влияет на доступность бонуса.
-        // Бонус становится доступным только при переходе договора в статус "Выполнен".
+        $bonus = $contract->agentBonus;
+        if (!$bonus) {
+            return;
+        }
+
+        // Проверяем оба условия для доступности бонуса
+        $this->checkAndUpdateContractBonusAvailability($contract, $bonus);
     }
 
     /**
@@ -284,12 +290,9 @@ class BonusService
     /**
      * Обработать изменение статуса договора.
      *
-     * Проверяет, нужно ли перевести бонус в статус "Доступно к выплате"
-     * при переходе договора в статус "Выполнен" (completed).
-     *
-     * Бонус становится доступным к выплате когда:
+     * Бонус становится доступным к выплате когда выполнены ОБА условия:
      * - Статус договора = 'completed' (Выполнен)
-     * - Договор активен (is_active = true)
+     * - Статус оплаты партнёром = 'paid' (Оплачено)
      *
      * @param Contract $contract
      * @param string $newStatusSlug
@@ -302,16 +305,45 @@ class BonusService
             return;
         }
 
-        // Если договор перешёл в статус "Выполнен"
-        if ($newStatusSlug === 'completed') {
-            $isContractActive = $contract->is_active === true;
+        // Проверяем оба условия для доступности бонуса
+        $this->checkAndUpdateContractBonusAvailability($contract, $bonus);
+    }
 
-            if ($isContractActive) {
+    /**
+     * Проверить и обновить доступность бонуса для договора.
+     *
+     * Бонус становится доступным к выплате когда выполнены ОБА условия:
+     * - is_contract_completed: Статус договора = 'completed' (Выполнен)
+     * - is_partner_paid: Статус оплаты партнёром = 'paid' (Оплачено)
+     *
+     * @param Contract $contract
+     * @param AgentBonus $bonus
+     * @return void
+     */
+    private function checkAndUpdateContractBonusAvailability(Contract $contract, AgentBonus $bonus): void
+    {
+        // Загружаем связи если не загружены
+        if (!$contract->relationLoaded('status')) {
+            $contract->load('status');
+        }
+        if (!$contract->relationLoaded('partnerPaymentStatus')) {
+            $contract->load('partnerPaymentStatus');
+        }
+
+        // Генерируем два булевых значения
+        $isContractCompleted = $contract->status && $contract->status->slug === 'completed';
+        $isPartnerPaid = $contract->partnerPaymentStatus && $contract->partnerPaymentStatus->code === 'paid';
+        $isContractActive = $contract->is_active === true;
+
+        // Бонус доступен только если ОБА условия выполнены И договор активен
+        if ($isContractCompleted && $isPartnerPaid && $isContractActive) {
+            // Переводим бонус в "Доступно к выплате" только если он ещё не в этом статусе
+            $currentBonusStatus = $bonus->status;
+            if (!$currentBonusStatus || $currentBonusStatus->code !== 'available_for_payment') {
                 $this->markBonusAsAvailable($bonus);
             }
         } else {
-            // Если договор перешёл из "Выполнен" в другой статус,
-            // откатываем бонус в "Начислено" (если он был "Доступно")
+            // Если хотя бы одно условие не выполнено - откатываем бонус в "Начислено"
             $currentBonusStatus = $bonus->status;
             if ($currentBonusStatus && $currentBonusStatus->code === 'available_for_payment') {
                 $this->revertBonusToAccrued($bonus);
@@ -322,8 +354,9 @@ class BonusService
     /**
      * Обработать изменение is_active для договора.
      *
-     * Бонус становится доступным к выплате когда:
+     * Бонус становится доступным к выплате когда выполнены ОБА условия:
      * - Статус договора = 'completed' (Выполнен)
+     * - Статус оплаты партнёром = 'paid' (Оплачено)
      * - Договор активен (is_active = true)
      *
      * @param Contract $contract
@@ -336,21 +369,8 @@ class BonusService
             return;
         }
 
-        if ($contract->is_active) {
-            // Договор стал активным - проверяем статус договора
-            $contractStatus = $contract->status;
-            $isContractCompleted = $contractStatus && $contractStatus->slug === 'completed';
-
-            if ($isContractCompleted) {
-                $this->markBonusAsAvailable($bonus);
-            }
-        } else {
-            // Договор стал неактивным - откатываем бонус
-            $currentBonusStatus = $bonus->status;
-            if ($currentBonusStatus && $currentBonusStatus->code === 'available_for_payment') {
-                $this->revertBonusToAccrued($bonus);
-            }
-        }
+        // Проверяем оба условия для доступности бонуса
+        $this->checkAndUpdateContractBonusAvailability($contract, $bonus);
     }
 
     /**

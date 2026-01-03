@@ -50,6 +50,7 @@ class PublicProjectController extends Controller
             ],
             'address' => ['nullable', 'string', 'max:500'],
             'comment' => ['nullable', 'string'],
+            'is_incognito' => ['nullable', 'boolean'],
         ]);
 
         $agent = User::where('key', $validated['secret_key'])->first();
@@ -105,6 +106,7 @@ class PublicProjectController extends Controller
                 'client_id' => $client->id,
                 'status_id' => $defaultStatus?->id,
                 'is_active' => true,
+                'is_incognito' => $validated['is_incognito'] ?? false,
                 'address' => $validated['address'],
             ]);
 

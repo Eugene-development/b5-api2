@@ -24,7 +24,7 @@ final readonly class AgentBonusesQuery
         }
 
         $query = AgentBonus::where('agent_id', $user->id)
-            ->with(['status', 'contract', 'contract.status', 'order']);
+            ->with(['status', 'contract', 'contract.status', 'contract.partnerPaymentStatus', 'order']);
 
         // Фильтруем бонусы: показываем только те, где договор в статусе "Заключён" или далее
         // (т.е. исключаем договоры в статусе "Обработка" / preparing)

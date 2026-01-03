@@ -15,6 +15,11 @@ final readonly class UpdateContractPartnerPaymentStatus
     /**
      * Update partner payment status for a contract.
      *
+     * При изменении статуса оплаты партнёром проверяется доступность бонуса.
+     * Бонус становится доступным только если выполнены ОБА условия:
+     * - is_contract_completed: статус договора = 'completed' (Выполнен)
+     * - is_partner_paid: статус оплаты партнёром = 'paid' (Оплачено)
+     *
      * @param  null  $_
      * @param  array  $args
      * @return Contract
@@ -30,7 +35,8 @@ final readonly class UpdateContractPartnerPaymentStatus
         }
 
         return DB::transaction(function () use ($contractId, $status, $statusCode) {
-            $contract = Contract::findOrFail($contractId);
+            $contract = Contract::with(['status', 'partnerPaymentStatus', 'agentBonus'])
+                ->findOrFail($contractId);
             $contract->partner_payment_status_id = $status->id;
 
             // Устанавливаем дату оплаты при смене статуса на "paid"
@@ -43,9 +49,10 @@ final readonly class UpdateContractPartnerPaymentStatus
 
             $contract->save();
 
-            // ПРИМЕЧАНИЕ: С упрощением статусов бонусов, статус оплаты партнёром
-            // больше не влияет на статус бонуса. Бонус остаётся в статусе "Ожидание"
-            // до момента выплаты агенту.
+            // Обновляем статус бонуса на основе двух условий:
+            // is_contract_completed И is_partner_paid
+            $bonusService = app(BonusService::class);
+            $bonusService->handleContractPartnerPaymentStatusChange($contract, $statusCode);
 
             return $contract->load(['project', 'company', 'partnerPaymentStatus']);
         });

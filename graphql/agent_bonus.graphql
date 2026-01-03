@@ -37,6 +37,10 @@ type AgentBonus {
     source_amount: Float! @method(name: "getSourceAmountAttribute")
     "Название проекта"
     project_name: String @method(name: "getProjectNameAttribute")
+    "Выполнен ли договор (статус = completed). Для заказов = null"
+    is_contract_completed: Boolean @method(name: "getIsContractCompletedAttribute")
+    "Оплачен ли договор партнёром (partner_payment_status = paid). Для заказов = null"
+    is_partner_paid: Boolean @method(name: "getIsPartnerPaidAttribute")
 }
 
 "Статистика бонусов агента"

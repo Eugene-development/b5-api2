@@ -48,6 +48,8 @@ class AgentBonus extends Model
         'project_name',
         'contract_number',
         'order_number',
+        'is_contract_completed',
+        'is_partner_paid',
     ];
 
     /**
@@ -152,6 +154,56 @@ class AgentBonus extends Model
             return $this->order->order_number;
         }
         return null;
+    }
+
+    /**
+     * Accessor: Выполнен ли договор (статус = 'completed').
+     * Для бонусов от заказов всегда возвращает null.
+     */
+    public function getIsContractCompletedAttribute(): ?bool
+    {
+        if (!$this->contract_id) {
+            return null; // Для заказов не применимо
+        }
+
+        if (!$this->relationLoaded('contract')) {
+            $this->load('contract.status');
+        }
+
+        if (!$this->contract) {
+            return false;
+        }
+
+        if (!$this->contract->relationLoaded('status')) {
+            $this->contract->load('status');
+        }
+
+        return $this->contract->status && $this->contract->status->slug === 'completed';
+    }
+
+    /**
+     * Accessor: Оплачен ли договор партнёром (partner_payment_status = 'paid').
+     * Для бонусов от заказов всегда возвращает null.
+     */
+    public function getIsPartnerPaidAttribute(): ?bool
+    {
+        if (!$this->contract_id) {
+            return null; // Для заказов не применимо
+        }
+
+        if (!$this->relationLoaded('contract')) {
+            $this->load('contract.partnerPaymentStatus');
+        }
+
+        if (!$this->contract) {
+            return false;
+        }
+
+        if (!$this->contract->relationLoaded('partnerPaymentStatus')) {
+            $this->contract->load('partnerPaymentStatus');
+        }
+
+        return $this->contract->partnerPaymentStatus && $this->contract->partnerPaymentStatus->code === 'paid';
     }
 
     /**

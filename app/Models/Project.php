@@ -33,6 +33,7 @@ class Project extends Model
         'value',
         'description',
         'is_active',
+        'is_incognito',
         'address',
         'user_id',
         'client_id',
@@ -43,6 +44,7 @@ class Project extends Model
 
     protected $casts = [
         'is_active' => 'boolean',
+        'is_incognito' => 'boolean',
     ];
 
     /**
