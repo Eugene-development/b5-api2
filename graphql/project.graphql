@@ -253,6 +253,8 @@ type ContractBonusInfo {
     agent_bonus: Float!
     curator_bonus: Float!
     is_active: Boolean!
+    "Доступен ли бонус к выплате"
+    is_available: Boolean!
 }
 
 "Информация о бонусах по закупке"
@@ -265,4 +267,6 @@ type OrderBonusInfo {
     agent_bonus: Float!
     curator_bonus: Float!
     is_active: Boolean!
+    "Доступен ли бонус к выплате"
+    is_available: Boolean!
 }

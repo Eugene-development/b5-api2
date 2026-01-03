@@ -4,6 +4,8 @@ namespace App\GraphQL\Mutations;
 
 use App\Models\Contract;
 use App\Models\ContractStatus;
+use App\Services\BonusService;
+use Illuminate\Support\Facades\DB;
 
 class UpdateContractStatus
 {
@@ -18,20 +20,26 @@ class UpdateContractStatus
         $contractId = $args['contract_id'];
         $statusSlug = $args['status_slug'];
 
-        // Find the contract
-        $contract = Contract::findOrFail($contractId);
+        return DB::transaction(function () use ($contractId, $statusSlug) {
+            // Find the contract with relations
+            $contract = Contract::with(['status', 'partnerPaymentStatus', 'agentBonus'])
+                ->findOrFail($contractId);
 
-        // Find the status by slug
-        $status = ContractStatus::where('slug', $statusSlug)
-            ->where('is_active', true)
-            ->firstOrFail();
+            // Find the status by slug
+            $status = ContractStatus::where('slug', $statusSlug)
+                ->where('is_active', true)
+                ->firstOrFail();
 
-        // Update the contract status directly without triggering model events
-        Contract::where('id', $contractId)->update(['status_id' => $status->id]);
+            // Update the contract status
+            $contract->status_id = $status->id;
+            $contract->save();
 
-        // Reload the contract with fresh data
-        $contract = Contract::with(['project', 'company', 'status'])->findOrFail($contractId);
+            // Handle bonus status change
+            $bonusService = app(BonusService::class);
+            $bonusService->handleContractStatusChange($contract, $statusSlug);
 
-        return $contract;
+            // Reload the contract with fresh data
+            return Contract::with(['project', 'company', 'status'])->findOrFail($contractId);
+        });
     }
 }

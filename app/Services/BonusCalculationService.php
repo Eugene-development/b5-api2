@@ -87,7 +87,7 @@ class BonusCalculationService
      * Агрегирует бонусы из всех договоров и закупок проекта.
      *
      * Бонусы учитываются только для:
-     * - Договоров со статусом "Заключён" (slug: signed)
+     * - Договоров со статусом "Заключён" (slug: signed) или "Выполнен" (slug: completed)
      * - Закупок со статусом "Сформирован" (slug: formed)
      *
      * @param string $projectId
@@ -100,27 +100,37 @@ class BonusCalculationService
      */
     public function getProjectBonusSummary(string $projectId): array
     {
-        // Получаем все договоры проекта с их статусами
+        // Получаем все договоры проекта с их статусами и бонусами
         $contracts = Contract::where('project_id', $projectId)
-            ->with('status')
+            ->with(['status', 'agentBonus'])
             ->get();
 
-        // Получаем все закупки проекта с их статусами
+        // Получаем все закупки проекта с их статусами и бонусами
         $orders = Order::where('project_id', $projectId)
-            ->with('status')
+            ->with(['status', 'agentBonus'])
             ->get();
 
         // Агрегируем бонусы
         $totalAgentBonus = 0.0;
         $totalCuratorBonus = 0.0;
 
+        // Статусы договоров, которые учитываются в бонусах
+        $allowedContractStatuses = ['signed', 'completed'];
+
         $contractsData = [];
         foreach ($contracts as $contract) {
-            // Фильтруем: отправляем на фронтенд только договоры со статусом "Заключён" (signed)
+            // Фильтруем: отправляем на фронтенд только договоры со статусом "Заключён" или "Выполнен"
             $statusSlug = $contract->status?->slug;
-            if ($statusSlug !== 'signed') {
+            if (!in_array($statusSlug, $allowedContractStatuses)) {
                 continue;
             }
+
+            // Проверяем доступность бонуса к выплате
+            $agentBonus = $contract->agentBonus;
+            $isAvailable = $agentBonus
+                && $agentBonus->available_at !== null
+                && $agentBonus->available_at <= now()
+                && $agentBonus->paid_at === null;
 
             $contractsData[] = [
                 'id' => $contract->id,
@@ -131,6 +141,7 @@ class BonusCalculationService
                 'agent_bonus' => $contract->agent_bonus ?? 0,
                 'curator_bonus' => $contract->curator_bonus ?? 0,
                 'is_active' => $contract->is_active,
+                'is_available' => $isAvailable,
             ];
 
             // Считаем бонусы
@@ -140,6 +151,13 @@ class BonusCalculationService
 
         $ordersData = [];
         foreach ($orders as $order) {
+            // Проверяем доступность бонуса к выплате
+            $agentBonus = $order->agentBonus;
+            $isAvailable = $agentBonus
+                && $agentBonus->available_at !== null
+                && $agentBonus->available_at <= now()
+                && $agentBonus->paid_at === null;
+
             // Отправляем все заказы на фронтенд, независимо от статуса
             $ordersData[] = [
                 'id' => $order->id,
@@ -150,6 +168,7 @@ class BonusCalculationService
                 'agent_bonus' => $order->agent_bonus ?? 0,
                 'curator_bonus' => $order->curator_bonus ?? 0,
                 'is_active' => $order->is_active,
+                'is_available' => $isAvailable,
             ];
 
             // Считаем бонусы
