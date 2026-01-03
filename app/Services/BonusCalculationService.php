@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\Contract;
 use App\Models\Order;
 use App\Models\Project;
+use App\Models\AgentBonus;
 
 /**
  * Сервис для централизованного расчёта бонусов агентов и кураторов.
@@ -156,11 +157,27 @@ class BonusCalculationService
             $totalCuratorBonus += $order->curator_bonus ?? 0;
         }
 
+        // Получаем сумму доступных к выплате бонусов для этого проекта
+        // Это бонусы, у которых available_at <= сейчас и они ещё не выплачены (paid_at IS NULL)
+        $totalAvailableBonus = AgentBonus::where(function ($query) use ($projectId) {
+                $query->whereHas('contract', function ($q) use ($projectId) {
+                    $q->where('project_id', $projectId);
+                })
+                ->orWhereHas('order', function ($q) use ($projectId) {
+                    $q->where('project_id', $projectId);
+                });
+            })
+            ->whereNotNull('available_at')
+            ->where('available_at', '<=', now())
+            ->whereNull('paid_at')
+            ->sum('commission_amount');
+
         return [
             'contracts' => $contractsData,
             'orders' => $ordersData,
             'totalAgentBonus' => round($totalAgentBonus, 2),
             'totalCuratorBonus' => round($totalCuratorBonus, 2),
+            'totalAvailableBonus' => round((float) $totalAvailableBonus, 2),
         ];
     }
 

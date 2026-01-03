@@ -239,6 +239,8 @@ type ProjectBonusDetails {
     totalAgentBonus: Float!
     "Общий бонус куратора по проекту"
     totalCuratorBonus: Float!
+    "Сумма бонусов, доступных к выплате"
+    totalAvailableBonus: Float!
 }
 
 "Информация о бонусах по договору"
