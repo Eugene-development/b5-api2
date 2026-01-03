@@ -44,6 +44,12 @@ final readonly class AdminBonusStatsQuery
             ->when($pendingStatus, fn($q) => $q->where('status_id', $pendingStatus->id))
             ->sum('commission_amount');
 
+        // Calculate available bonuses (pending status + available_at <= now)
+        $totalAvailable = (clone $query)
+            ->when($pendingStatus, fn($q) => $q->where('status_id', $pendingStatus->id))
+            ->where('available_at', '<=', now())
+            ->sum('commission_amount');
+
         $totalPaid = (clone $query)
             ->when($paidStatus, fn($q) => $q->where('status_id', $paidStatus->id))
             ->sum('commission_amount');
@@ -54,6 +60,7 @@ final readonly class AdminBonusStatsQuery
 
         return [
             'total_pending' => (float) $totalPending,
+            'total_available' => (float) $totalAvailable,
             'total_paid' => (float) $totalPaid,
             'contracts_count' => $contractsCount,
             'orders_count' => $ordersCount,
