@@ -58,12 +58,23 @@ final readonly class AdminBonusStatsQuery
         $contractsCount = (clone $query)->whereNotNull('contract_id')->count();
         $ordersCount = (clone $query)->whereNotNull('order_id')->count();
 
+        // Referral bonuses statistics
+        $totalReferral = (clone $query)
+            ->where('bonus_type', 'referral')
+            ->sum('commission_amount');
+
+        $referralCount = (clone $query)
+            ->where('bonus_type', 'referral')
+            ->count();
+
         return [
             'total_pending' => (float) $totalPending,
             'total_available' => (float) $totalAvailable,
             'total_paid' => (float) $totalPaid,
             'contracts_count' => $contractsCount,
             'orders_count' => $ordersCount,
+            'total_referral' => (float) $totalReferral,
+            'referral_count' => $referralCount,
         ];
     }
 }

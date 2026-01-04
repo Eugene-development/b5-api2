@@ -28,6 +28,8 @@ class AgentBonus extends Model
         'accrued_at',
         'available_at',
         'paid_at',
+        'bonus_type',
+        'referral_user_id',
     ];
 
     protected $casts = [
@@ -50,6 +52,7 @@ class AgentBonus extends Model
         'order_number',
         'is_contract_completed',
         'is_partner_paid',
+        'bonus_type_label',
     ];
 
     /**
@@ -83,6 +86,15 @@ class AgentBonus extends Model
     public function status(): BelongsTo
     {
         return $this->belongsTo(BonusStatus::class, 'status_id');
+    }
+
+    /**
+     * Получить реферала, за сделку которого начислен бонус.
+     * Только для реферальных бонусов (bonus_type = 'referral').
+     */
+    public function referralUser(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'referral_user_id');
     }
 
     /**
@@ -154,6 +166,18 @@ class AgentBonus extends Model
             return $this->order->order_number;
         }
         return null;
+    }
+
+    /**
+     * Accessor: Человекочитаемый тип бонуса.
+     */
+    public function getBonusTypeLabelAttribute(): string
+    {
+        return match ($this->bonus_type) {
+            'referral' => 'Реферальный',
+            'agent' => 'Агентский',
+            default => 'Агентский',
+        };
     }
 
     /**
@@ -238,5 +262,24 @@ class AgentBonus extends Model
     public function scopeFromOrders($query)
     {
         return $query->whereNotNull('order_id');
+    }
+
+    /**
+     * Scope: Агентские бонусы.
+     */
+    public function scopeAgentBonuses($query)
+    {
+        return $query->where(function ($q) {
+            $q->where('bonus_type', 'agent')
+              ->orWhereNull('bonus_type');
+        });
+    }
+
+    /**
+     * Scope: Реферальные бонусы.
+     */
+    public function scopeReferralBonuses($query)
+    {
+        return $query->where('bonus_type', 'referral');
     }
 }

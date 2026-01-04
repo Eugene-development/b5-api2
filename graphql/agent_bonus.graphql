@@ -31,6 +31,12 @@ type AgentBonus {
     paid_at: DateTime
     created_at: DateTime!
     updated_at: DateTime!
+    "Тип бонуса: agent или referral"
+    bonus_type: String
+    "ID реферала, за сделку которого начислен бонус (только для referral)"
+    referral_user_id: ID
+    "Реферал, за сделку которого начислен бонус"
+    referralUser: User @belongsTo
     "Тип источника: contract или order"
     source_type: String! @method(name: "getSourceTypeAttribute")
     "Сумма источника (договора или закупки)"
@@ -41,6 +47,8 @@ type AgentBonus {
     is_contract_completed: Boolean @method(name: "getIsContractCompletedAttribute")
     "Оплачен ли договор партнёром (partner_payment_status = paid). Для заказов = null"
     is_partner_paid: Boolean @method(name: "getIsPartnerPaidAttribute")
+    "Человекочитаемый тип бонуса"
+    bonus_type_label: String @method(name: "getBonusTypeLabelAttribute")
 }
 
 "Статистика бонусов агента"
@@ -65,6 +73,10 @@ type AdminBonusStats {
     contracts_count: Int!
     "Количество бонусов по заказам"
     orders_count: Int!
+    "Общая сумма реферальных бонусов"
+    total_referral: Float!
+    "Количество реферальных бонусов"
+    referral_count: Int!
 }
 
 "Фильтры для бонусов агента"
@@ -73,12 +85,44 @@ input AgentBonusFilters {
     status_code: String
     "Тип источника (contract, order)"
     source_type: String
+    "Тип бонуса (agent, referral)"
+    bonus_type: String
     "Дата начисления от"
     date_from: DateTime
     "Дата начисления до"
     date_to: DateTime
     "ID агента (для админки)"
     agent_id: ID
+}
+
+"Статистика реферальных бонусов"
+type ReferralBonusStats {
+    "Ожидание выплаты"
+    total_pending: Float!
+    "Доступно к выплате"
+    total_available: Float!
+    "Выплачено"
+    total_paid: Float!
+    "Общая сумма"
+    total: Float!
+    "Список рефералов с их статистикой"
+    referrals: [ReferralUserStats!]!
+}
+
+"Статистика по рефералу"
+type ReferralUserStats {
+    "ID реферала"
+    user_id: ID!
+    "Имя реферала"
+    name: String!
+    "Email реферала"
+    email: String!
+    "Дата регистрации"
+    registered_at: DateTime!
+    "Активна ли реферальная программа"
+    is_active: Boolean!
+    "Общая сумма бонусов от этого реферала"
+    total_bonus: Float!
 }
 
 
@@ -90,6 +134,10 @@ extend type Query {
     "Получить статистику бонусов текущего агента"
     agentBonusStats(filters: AgentBonusFilters): AgentBonusStats!
         @field(resolver: "App\\GraphQL\\Queries\\AgentBonusStatsQuery")
+
+    "Получить статистику реферальных бонусов текущего агента"
+    referralBonusStats: ReferralBonusStats!
+        @field(resolver: "App\\GraphQL\\Queries\\ReferralBonusStatsQuery")
 
     "Получить доступные к выплате бонусы агента (для админа)"
     availableBonusesForPayment(agent_id: ID!): [AgentBonus!]!

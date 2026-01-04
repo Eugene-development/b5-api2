@@ -48,6 +48,17 @@ final readonly class AdminBonusesQuery
             $query->where('agent_id', $filters['agent_id']);
         }
 
+        if (!empty($filters['bonus_type'])) {
+            if ($filters['bonus_type'] === 'agent') {
+                $query->where(function ($q) {
+                    $q->where('bonus_type', 'agent')
+                      ->orWhereNull('bonus_type');
+                });
+            } elseif ($filters['bonus_type'] === 'referral') {
+                $query->where('bonus_type', 'referral');
+            }
+        }
+
         if (!empty($filters['date_from'])) {
             $query->where('accrued_at', '>=', $filters['date_from']);
         }

@@ -23,6 +23,12 @@ use Illuminate\Support\Facades\DB;
  */
 class BonusService
 {
+    protected ReferralBonusService $referralBonusService;
+
+    public function __construct(?ReferralBonusService $referralBonusService = null)
+    {
+        $this->referralBonusService = $referralBonusService ?? new ReferralBonusService();
+    }
     /**
      * Рассчитать сумму комиссии.
      *
@@ -64,7 +70,7 @@ class BonusService
             (float) $contract->agent_percentage
         );
 
-        return AgentBonus::create([
+        $agentBonus = AgentBonus::create([
             'agent_id' => $agentId,
             'contract_id' => $contract->id,
             'order_id' => null,
@@ -73,7 +79,14 @@ class BonusService
             'accrued_at' => now(),
             'available_at' => null,
             'paid_at' => null,
+            'bonus_type' => 'agent',
+            'referral_user_id' => null,
         ]);
+
+        // Создаём реферальный бонус для реферера агента
+        $this->referralBonusService->createReferralBonusForContract($contract, $agentId);
+
+        return $agentBonus;
     }
 
     /**
@@ -100,7 +113,7 @@ class BonusService
             (float) $order->agent_percentage
         );
 
-        return AgentBonus::create([
+        $agentBonus = AgentBonus::create([
             'agent_id' => $agentId,
             'contract_id' => null,
             'order_id' => $order->id,
@@ -109,7 +122,14 @@ class BonusService
             'accrued_at' => now(),
             'available_at' => null,
             'paid_at' => null,
+            'bonus_type' => 'agent',
+            'referral_user_id' => null,
         ]);
+
+        // Создаём реферальный бонус для реферера агента
+        $this->referralBonusService->createReferralBonusForOrder($order, $agentId);
+
+        return $agentBonus;
     }
 
     /**
