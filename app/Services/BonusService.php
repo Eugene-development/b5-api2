@@ -362,15 +362,13 @@ class BonusService
 
         // Бонус доступен только если ОБА условия выполнены И договор активен
         if ($isContractCompleted && $isPartnerPaid && $isContractActive) {
-            // Переводим бонус в "Доступно к выплате" только если он ещё не в этом статусе
-            $currentBonusStatus = $bonus->status;
-            if (!$currentBonusStatus || $currentBonusStatus->code !== 'available_for_payment') {
+            // Переводим бонус в "Доступно к выплате" (устанавливаем available_at)
+            if ($bonus->available_at === null) {
                 $this->markBonusAsAvailable($bonus);
             }
         } else {
-            // Если хотя бы одно условие не выполнено - откатываем бонус в "Начислено"
-            $currentBonusStatus = $bonus->status;
-            if ($currentBonusStatus && $currentBonusStatus->code === 'available_for_payment') {
+            // Если хотя бы одно условие не выполнено - очищаем available_at
+            if ($bonus->available_at !== null) {
                 $this->revertBonusToAccrued($bonus);
             }
         }
@@ -432,10 +430,8 @@ class BonusService
                 $this->markBonusAsAvailable($bonus);
             }
         } else {
-            // Если заказ перешёл из "Доставлен" в другой статус,
-            // откатываем бонус в "Начислено" (если он был "Доступно")
-            $currentBonusStatus = $bonus->status;
-            if ($currentBonusStatus && $currentBonusStatus->code === 'available_for_payment') {
+            // Если заказ перешёл из "Доставлен" в другой статус - очищаем available_at
+            if ($bonus->available_at !== null) {
                 $this->revertBonusToAccrued($bonus);
             }
         }
@@ -471,9 +467,8 @@ class BonusService
                 $this->markBonusAsAvailable($bonus);
             }
         } else {
-            // Заказ стал неактивным - откатываем бонус
-            $currentBonusStatus = $bonus->status;
-            if ($currentBonusStatus && $currentBonusStatus->code === 'available_for_payment') {
+            // Заказ стал неактивным - очищаем available_at
+            if ($bonus->available_at !== null) {
                 $this->revertBonusToAccrued($bonus);
             }
         }
