@@ -342,6 +342,11 @@ class BonusService
      */
     private function checkAndUpdateContractBonusAvailability(Contract $contract, AgentBonus $bonus): void
     {
+        // Не трогаем уже оплаченные бонусы
+        if ($bonus->paid_at !== null) {
+            return;
+        }
+
         // Загружаем связи если не загружены
         if (!$contract->relationLoaded('status')) {
             $contract->load('status');
@@ -414,6 +419,11 @@ class BonusService
             return;
         }
 
+        // Не трогаем уже оплаченные бонусы
+        if ($bonus->paid_at !== null) {
+            return;
+        }
+
         // Если заказ перешёл в статус "Доставлен"
         if ($newStatusSlug === 'delivered') {
             $isOrderActive = $order->is_active === true;
@@ -444,6 +454,11 @@ class BonusService
     {
         $bonus = $order->agentBonus;
         if (!$bonus) {
+            return;
+        }
+
+        // Не трогаем уже оплаченные бонусы
+        if ($bonus->paid_at !== null) {
             return;
         }
 
