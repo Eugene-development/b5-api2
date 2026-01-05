@@ -102,7 +102,7 @@ class BonusCalculationService
     {
         // Получаем все договоры проекта с их статусами и бонусами
         $contracts = Contract::where('project_id', $projectId)
-            ->with(['status', 'agentBonus'])
+            ->with(['status', 'agentBonus', 'partnerPaymentStatus'])
             ->get();
 
         // Получаем все закупки проекта с их статусами и бонусами
@@ -126,11 +126,16 @@ class BonusCalculationService
             }
 
             // Проверяем доступность бонуса к выплате
+            // Для договоров: оба условия (is_contract_completed И is_partner_paid) должны быть true
+            // И бонус ещё не выплачен (paid_at === null)
             $agentBonus = $contract->agentBonus;
-            $isAvailable = $agentBonus
-                && $agentBonus->available_at !== null
-                && $agentBonus->available_at <= now()
-                && $agentBonus->paid_at === null;
+            
+            $isContractCompleted = $contract->status && $contract->status->slug === 'completed';
+            $isPartnerPaid = $contract->partnerPaymentStatus && $contract->partnerPaymentStatus->code === 'paid';
+            $isContractActive = $contract->is_active === true;
+            $isNotPaid = $agentBonus && $agentBonus->paid_at === null;
+            
+            $isAvailable = $isContractCompleted && $isPartnerPaid && $isContractActive && $isNotPaid;
 
             $contractsData[] = [
                 'id' => $contract->id,
@@ -152,11 +157,14 @@ class BonusCalculationService
         $ordersData = [];
         foreach ($orders as $order) {
             // Проверяем доступность бонуса к выплате
+            // Для заказов: статус = 'delivered' И заказ активен И бонус не выплачен
             $agentBonus = $order->agentBonus;
-            $isAvailable = $agentBonus
-                && $agentBonus->available_at !== null
-                && $agentBonus->available_at <= now()
-                && $agentBonus->paid_at === null;
+            
+            $isOrderDelivered = $order->status && $order->status->slug === 'delivered';
+            $isOrderActive = $order->is_active === true;
+            $isNotPaid = $agentBonus && $agentBonus->paid_at === null;
+            
+            $isAvailable = $isOrderDelivered && $isOrderActive && $isNotPaid;
 
             // Отправляем все заказы на фронтенд, независимо от статуса
             $ordersData[] = [
@@ -176,27 +184,28 @@ class BonusCalculationService
             $totalCuratorBonus += $order->curator_bonus ?? 0;
         }
 
-        // Получаем сумму доступных к выплате бонусов для этого проекта
-        // Это бонусы, у которых available_at <= сейчас и они ещё не выплачены (paid_at IS NULL)
-        $totalAvailableBonus = AgentBonus::where(function ($query) use ($projectId) {
-                $query->whereHas('contract', function ($q) use ($projectId) {
-                    $q->where('project_id', $projectId);
-                })
-                ->orWhereHas('order', function ($q) use ($projectId) {
-                    $q->where('project_id', $projectId);
-                });
-            })
-            ->whereNotNull('available_at')
-            ->where('available_at', '<=', now())
-            ->whereNull('paid_at')
-            ->sum('commission_amount');
+        // Считаем сумму доступных к выплате бонусов из данных, которые мы уже рассчитали
+        // Это обеспечивает консистентность с галочками is_available
+        $totalAvailableBonus = 0.0;
+        
+        foreach ($contractsData as $contractInfo) {
+            if ($contractInfo['is_available']) {
+                $totalAvailableBonus += (float)($contractInfo['agent_bonus'] ?? 0);
+            }
+        }
+        
+        foreach ($ordersData as $orderInfo) {
+            if ($orderInfo['is_available']) {
+                $totalAvailableBonus += (float)($orderInfo['agent_bonus'] ?? 0);
+            }
+        }
 
         return [
             'contracts' => $contractsData,
             'orders' => $ordersData,
             'totalAgentBonus' => round($totalAgentBonus, 2),
             'totalCuratorBonus' => round($totalCuratorBonus, 2),
-            'totalAvailableBonus' => round((float) $totalAvailableBonus, 2),
+            'totalAvailableBonus' => round($totalAvailableBonus, 2),
         ];
     }
 
