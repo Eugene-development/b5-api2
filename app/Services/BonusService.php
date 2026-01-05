@@ -204,7 +204,7 @@ class BonusService
     public function getAgentStats(int $agentId, ?array $filters = null): array
     {
         $query = AgentBonus::where('agent_id', $agentId)
-            ->with(['contract.status', 'order']);
+            ->with(['contract.status', 'contract.partnerPaymentStatus', 'order.status']);
 
         // Фильтруем бонусы: показываем только те, где договор в статусе "Заключён" или далее
         // (т.е. исключаем договоры в статусе "Обработка" / preparing)
@@ -245,17 +245,36 @@ class BonusService
         foreach ($bonuses as $bonus) {
             $amount = (float) $bonus->commission_amount;
 
-            // Ожидание: бонусы, которые начислены, но еще не доступны к выплате
-            if ($bonus->available_at === null && $bonus->paid_at === null) {
-                $totalPending += $amount;
-            }
-            // Доступно к выплате: бонусы, которые доступны, но еще не выплачены
-            elseif ($bonus->available_at !== null && $bonus->paid_at === null) {
-                $totalAvailable += $amount;
-            }
             // Выплачено: бонусы, которые уже выплачены
-            elseif ($bonus->paid_at !== null) {
+            if ($bonus->paid_at !== null) {
                 $totalPaid += $amount;
+                continue;
+            }
+
+            // Определяем доступность бонуса к выплате
+            $isAvailable = false;
+            
+            if ($bonus->contract_id && $bonus->contract) {
+                // Для договоров: проверяем is_contract_completed И is_partner_paid
+                $contract = $bonus->contract;
+                $isContractCompleted = $contract->status && $contract->status->slug === 'completed';
+                $isPartnerPaid = $contract->partnerPaymentStatus && $contract->partnerPaymentStatus->code === 'paid';
+                $isContractActive = $contract->is_active === true;
+                
+                $isAvailable = $isContractCompleted && $isPartnerPaid && $isContractActive;
+            } elseif ($bonus->order_id && $bonus->order) {
+                // Для заказов: проверяем статус доставки
+                $order = $bonus->order;
+                $isOrderDelivered = $order->status && $order->status->slug === 'delivered';
+                $isOrderActive = $order->is_active === true;
+                
+                $isAvailable = $isOrderDelivered && $isOrderActive;
+            }
+
+            if ($isAvailable) {
+                $totalAvailable += $amount;
+            } else {
+                $totalPending += $amount;
             }
         }
 
