@@ -16,8 +16,9 @@ final readonly class UpdateBonusStatus
      * При изменении статуса бонуса:
      * - Если статус меняется на 'paid', устанавливается paid_at
      * - Если статус меняется на 'available_for_payment', устанавливается available_at
+     * - Если статус меняется на 'pending', очищается available_at
      * - Если статус меняется НЕ на 'paid', paid_at очищается
-     * - При возврате с 'paid' на другой статус, проверяются условия доступности
+     * - При возврате с 'paid' на другой статус (кроме pending), проверяются условия доступности
      *   и available_at восстанавливается если условия выполнены
      *
      * @param  null  $_
@@ -41,13 +42,18 @@ final readonly class UpdateBonusStatus
             $bonus->available_at = Carbon::now();
         }
 
+        // Clear available_at if status changes to pending
+        if ($args['status_code'] === 'pending') {
+            $bonus->available_at = null;
+        }
+
         // Clear paid_at if status is not paid
         if ($args['status_code'] !== 'paid') {
             $bonus->paid_at = null;
             
-            // При возврате с 'paid' на другой статус, проверяем условия доступности
+            // При возврате с 'paid' на другой статус (кроме pending), проверяем условия доступности
             // и восстанавливаем available_at если условия выполнены
-            if ($bonus->available_at === null) {
+            if ($args['status_code'] !== 'pending' && $bonus->available_at === null) {
                 $shouldBeAvailable = $this->checkBonusAvailabilityConditions($bonus);
                 if ($shouldBeAvailable) {
                     $bonus->available_at = Carbon::now();
