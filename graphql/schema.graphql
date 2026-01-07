@@ -22,3 +22,4 @@ scalar Upload
 #import project_offer.graphql
 #import agent_bonus.graphql
 #import agent_payment.graphql
+#import bonus_payment_request.graphql

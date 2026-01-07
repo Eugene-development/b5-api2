@@ -1,0 +1,72 @@
+"Статус заявки на выплату бонуса"
+type BonusPaymentStatus {
+    id: ID!
+    code: String!
+    name: String!
+    description: String
+    color: String!
+}
+
+"Заявка на выплату бонуса"
+type BonusPaymentRequest {
+    id: ID!
+    agent_id: ID!
+    agent: User @belongsTo
+    amount: Float!
+    payment_method: String!
+    card_number: String
+    phone_number: String
+    contact_info: String
+    comment: String
+    status_id: ID!
+    status: BonusPaymentStatus @belongsTo
+    payment_date: DateTime
+    created_at: DateTime!
+    updated_at: DateTime!
+}
+
+"Входные данные для создания заявки на выплату"
+input CreateBonusPaymentRequestInput {
+    amount: Float! @rules(apply: ["required", "numeric", "min:1"])
+    payment_method: String! @rules(apply: ["required", "in:card,sbp,other"])
+    card_number: String
+    phone_number: String
+    contact_info: String
+    comment: String
+}
+
+"Фильтры для заявок на выплату"
+input BonusPaymentRequestFilters {
+    "ID статуса"
+    status_id: ID
+    "Дата создания от"
+    date_from: DateTime
+    "Дата создания до"
+    date_to: DateTime
+}
+
+extend type Query {
+    "Получить заявки на выплату (для админа)"
+    bonusPaymentRequests(
+        filters: BonusPaymentRequestFilters @spread
+    ): [BonusPaymentRequest!]! @paginate(defaultCount: 20, model: "App\\Models\\BonusPaymentRequest")
+
+    "Получить заявки текущего агента"
+    myBonusPaymentRequests(
+        filters: BonusPaymentRequestFilters
+    ): [BonusPaymentRequest!]!
+        @field(resolver: "App\\GraphQL\\Queries\\MyBonusPaymentRequestsQuery")
+
+    "Справочник статусов заявок на выплату"
+    bonusPaymentStatuses: [BonusPaymentStatus!]! @all(model: "App\\Models\\BonusPaymentStatus")
+}
+
+extend type Mutation {
+    "Создать заявку на выплату (для агента)"
+    createBonusPaymentRequest(input: CreateBonusPaymentRequestInput!): BonusPaymentRequest!
+        @field(resolver: "App\\GraphQL\\Mutations\\CreateBonusPaymentRequest")
+
+    "Обновить статус заявки на выплату (для админа)"
+    updateBonusPaymentRequestStatus(request_id: ID!, status_code: String!): BonusPaymentRequest!
+        @field(resolver: "App\\GraphQL\\Mutations\\UpdateBonusPaymentRequestStatus")
+}
