@@ -45,8 +45,10 @@ final readonly class UpdateOrder
 
             $order->save();
 
-            // Пересчитываем бонус агента если он существует
+            // Пересчитываем бонус агента
             $bonusService = app(BonusService::class);
+            
+            // Если бонус существует - пересчитываем
             if ($order->agentBonus) {
                 $bonusService->recalculateBonus($order->agentBonus);
 
@@ -54,6 +56,20 @@ final readonly class UpdateOrder
                 if (isset($input['is_active']) && $previousIsActive !== $order->is_active) {
                     $order->load(['status', 'partnerPaymentStatus']);
                     $bonusService->handleOrderActiveChange($order);
+                }
+            } else {
+                // Если бонус НЕ существует и заказ стал активным - создаём бонус
+                // Такое возможно, если заказ был изначально создан неактивным
+                if ($order->is_active && isset($input['is_active']) && $previousIsActive !== $order->is_active) {
+                    $bonus = $bonusService->createBonusForOrder($order);
+                    
+                    // Если заказ уже доставлен - сразу делаем бонус доступным
+                    if ($bonus) {
+                        $order->load('status');
+                        if ($order->status && $order->status->slug === 'delivered') {
+                            $bonusService->markBonusAsAvailable($bonus);
+                        }
+                    }
                 }
             }
 

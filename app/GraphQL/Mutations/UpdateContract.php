@@ -44,8 +44,10 @@ final readonly class UpdateContract
 
             $contract->save();
 
-            // Пересчитываем бонус агента если он существует
+            // Пересчитываем бонус агента
             $bonusService = app(BonusService::class);
+            
+            // Если бонус существует - пересчитываем
             if ($contract->agentBonus) {
                 $bonusService->recalculateBonus($contract->agentBonus);
 
@@ -53,6 +55,23 @@ final readonly class UpdateContract
                 if (isset($input['is_active']) && $previousIsActive !== $contract->is_active) {
                     $contract->load(['status', 'partnerPaymentStatus']);
                     $bonusService->handleContractActiveChange($contract);
+                }
+            } else {
+                // Если бонус НЕ существует и контракт стал активным - создаём бонус
+                // Такое возможно, если контракт был изначально создан неактивным
+                if ($contract->is_active && isset($input['is_active']) && $previousIsActive !== $contract->is_active) {
+                    $bonus = $bonusService->createBonusForContract($contract);
+                    
+                    // Если контракт уже выполнен и оплачен партнёром - сразу делаем бонус доступным
+                    if ($bonus) {
+                        $contract->load(['status', 'partnerPaymentStatus']);
+                        $isCompleted = $contract->status && $contract->status->slug === 'completed';
+                        $isPaid = $contract->partnerPaymentStatus && $contract->partnerPaymentStatus->code === 'paid';
+                        
+                        if ($isCompleted && $isPaid) {
+                            $bonusService->markBonusAsAvailable($bonus);
+                        }
+                    }
                 }
             }
 
