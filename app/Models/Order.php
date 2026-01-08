@@ -191,11 +191,20 @@ class Order extends Model
     }
 
     /**
-     * Get the agent bonus for this order.
+     * Get the agent bonus for this order (first/primary bonus).
+     * @deprecated Use agentBonuses() to get all bonuses including referral bonuses
      */
     public function agentBonus(): HasOne
     {
         return $this->hasOne(AgentBonus::class, 'order_id');
+    }
+
+    /**
+     * Get all agent bonuses for this order (agent + referral).
+     */
+    public function agentBonuses(): HasMany
+    {
+        return $this->hasMany(AgentBonus::class, 'order_id');
     }
 
     /**

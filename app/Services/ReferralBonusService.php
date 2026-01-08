@@ -205,6 +205,7 @@ class ReferralBonusService
     {
         $bonuses = AgentBonus::where('agent_id', $referrerId)
             ->where('bonus_type', 'referral')
+            ->with(['contract.status', 'contract.partnerPaymentStatus', 'order.status'])
             ->get();
 
         $totalPending = 0.0;
@@ -214,12 +215,36 @@ class ReferralBonusService
         foreach ($bonuses as $bonus) {
             $amount = (float) $bonus->commission_amount;
 
-            if ($bonus->available_at === null && $bonus->paid_at === null) {
-                $totalPending += $amount;
-            } elseif ($bonus->available_at !== null && $bonus->paid_at === null) {
-                $totalAvailable += $amount;
-            } elseif ($bonus->paid_at !== null) {
+            // Выплачено: бонусы, которые уже выплачены
+            if ($bonus->paid_at !== null) {
                 $totalPaid += $amount;
+                continue;
+            }
+
+            // Определяем доступность бонуса к выплате (как в BonusService::getAgentStats)
+            $isAvailable = false;
+            
+            if ($bonus->contract_id && $bonus->contract) {
+                // Для договоров: проверяем is_contract_completed И is_partner_paid
+                $contract = $bonus->contract;
+                $isContractCompleted = $contract->status && $contract->status->slug === 'completed';
+                $isPartnerPaid = $contract->partnerPaymentStatus && $contract->partnerPaymentStatus->code === 'paid';
+                $isContractActive = $contract->is_active === true;
+                
+                $isAvailable = $isContractCompleted && $isPartnerPaid && $isContractActive;
+            } elseif ($bonus->order_id && $bonus->order) {
+                // Для заказов: проверяем статус доставки
+                $order = $bonus->order;
+                $isOrderDelivered = $order->status && $order->status->slug === 'delivered';
+                $isOrderActive = $order->is_active === true;
+                
+                $isAvailable = $isOrderDelivered && $isOrderActive;
+            }
+
+            if ($isAvailable) {
+                $totalAvailable += $amount;
+            } else {
+                $totalPending += $amount;
             }
         }
 

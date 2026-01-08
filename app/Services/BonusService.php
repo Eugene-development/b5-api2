@@ -308,19 +308,21 @@ class BonusService
      * - Статус договора = 'completed' (Выполнен)
      * - Статус оплаты партнёром = 'paid' (Оплачено)
      *
+     * Обновляет ВСЕ бонусы договора (агентский + реферальный).
+     *
      * @param Contract $contract
      * @param string $newStatusCode
      * @return void
      */
     public function handleContractPartnerPaymentStatusChange(Contract $contract, string $newStatusCode): void
     {
-        $bonus = $contract->agentBonus;
-        if (!$bonus) {
-            return;
+        // Получаем все бонусы договора (агентский + реферальный)
+        $bonuses = $contract->agentBonuses;
+        
+        foreach ($bonuses as $bonus) {
+            // Проверяем оба условия для доступности бонуса
+            $this->checkAndUpdateContractBonusAvailability($contract, $bonus);
         }
-
-        // Проверяем оба условия для доступности бонуса
-        $this->checkAndUpdateContractBonusAvailability($contract, $bonus);
     }
 
     /**
@@ -348,19 +350,21 @@ class BonusService
      * - Статус договора = 'completed' (Выполнен)
      * - Статус оплаты партнёром = 'paid' (Оплачено)
      *
+     * Обновляет ВСЕ бонусы договора (агентский + реферальный).
+     *
      * @param Contract $contract
      * @param string $newStatusSlug
      * @return void
      */
     public function handleContractStatusChange(Contract $contract, string $newStatusSlug): void
     {
-        $bonus = $contract->agentBonus;
-        if (!$bonus) {
-            return;
+        // Получаем все бонусы договора (агентский + реферальный)
+        $bonuses = $contract->agentBonuses;
+        
+        foreach ($bonuses as $bonus) {
+            // Проверяем оба условия для доступности бонуса
+            $this->checkAndUpdateContractBonusAvailability($contract, $bonus);
         }
-
-        // Проверяем оба условия для доступности бонуса
-        $this->checkAndUpdateContractBonusAvailability($contract, $bonus);
     }
 
     /**
@@ -416,18 +420,20 @@ class BonusService
      * - Статус оплаты партнёром = 'paid' (Оплачено)
      * - Договор активен (is_active = true)
      *
+     * Обновляет ВСЕ бонусы договора (агентский + реферальный).
+     *
      * @param Contract $contract
      * @return void
      */
     public function handleContractActiveChange(Contract $contract): void
     {
-        $bonus = $contract->agentBonus;
-        if (!$bonus) {
-            return;
+        // Получаем все бонусы договора (агентский + реферальный)
+        $bonuses = $contract->agentBonuses;
+        
+        foreach ($bonuses as $bonus) {
+            // Проверяем оба условия для доступности бонуса
+            $this->checkAndUpdateContractBonusAvailability($contract, $bonus);
         }
-
-        // Проверяем оба условия для доступности бонуса
-        $this->checkAndUpdateContractBonusAvailability($contract, $bonus);
     }
 
     /**
@@ -440,33 +446,35 @@ class BonusService
      * Для заказов НЕ требуется проверка оплаты партнёром,
      * так как компания сама организует продажу заказов.
      *
+     * Обновляет ВСЕ бонусы заказа (агентский + реферальный).
+     *
      * @param Order $order
      * @param string $newStatusSlug
      * @return void
      */
     public function handleOrderStatusChange(Order $order, string $newStatusSlug): void
     {
-        $bonus = $order->agentBonus;
-        if (!$bonus) {
-            return;
-        }
-
-        // Не трогаем уже оплаченные бонусы
-        if ($bonus->paid_at !== null) {
-            return;
-        }
-
-        // Если заказ перешёл в статус "Доставлен"
-        if ($newStatusSlug === 'delivered') {
-            $isOrderActive = $order->is_active === true;
-
-            if ($isOrderActive) {
-                $this->markBonusAsAvailable($bonus);
+        // Получаем все бонусы заказа (агентский + реферальный)
+        $bonuses = $order->agentBonuses;
+        
+        foreach ($bonuses as $bonus) {
+            // Не трогаем уже оплаченные бонусы
+            if ($bonus->paid_at !== null) {
+                continue;
             }
-        } else {
-            // Если заказ перешёл из "Доставлен" в другой статус - очищаем available_at
-            if ($bonus->available_at !== null) {
-                $this->revertBonusToAccrued($bonus);
+
+            // Если заказ перешёл в статус "Доставлен"
+            if ($newStatusSlug === 'delivered') {
+                $isOrderActive = $order->is_active === true;
+
+                if ($isOrderActive) {
+                    $this->markBonusAsAvailable($bonus);
+                }
+            } else {
+                // Если заказ перешёл из "Доставлен" в другой статус - очищаем available_at
+                if ($bonus->available_at !== null) {
+                    $this->revertBonusToAccrued($bonus);
+                }
             }
         }
     }
@@ -477,33 +485,35 @@ class BonusService
      * Для заказов НЕ требуется проверка оплаты партнёром.
      * Бонус доступен к выплате если заказ доставлен и активен.
      *
+     * Обновляет ВСЕ бонусы заказа (агентский + реферальный).
+     *
      * @param Order $order
      * @return void
      */
     public function handleOrderActiveChange(Order $order): void
     {
-        $bonus = $order->agentBonus;
-        if (!$bonus) {
-            return;
-        }
-
-        // Не трогаем уже оплаченные бонусы
-        if ($bonus->paid_at !== null) {
-            return;
-        }
-
-        if ($order->is_active) {
-            // Заказ стал активным - проверяем только статус доставки
-            $orderStatus = $order->status;
-            $isOrderDelivered = $orderStatus && $orderStatus->slug === 'delivered';
-
-            if ($isOrderDelivered) {
-                $this->markBonusAsAvailable($bonus);
+        // Получаем все бонусы заказа (агентский + реферальный)
+        $bonuses = $order->agentBonuses;
+        
+        foreach ($bonuses as $bonus) {
+            // Не трогаем уже оплаченные бонусы
+            if ($bonus->paid_at !== null) {
+                continue;
             }
-        } else {
-            // Заказ стал неактивным - очищаем available_at
-            if ($bonus->available_at !== null) {
-                $this->revertBonusToAccrued($bonus);
+
+            if ($order->is_active) {
+                // Заказ стал активным - проверяем только статус доставки
+                $orderStatus = $order->status;
+                $isOrderDelivered = $orderStatus && $orderStatus->slug === 'delivered';
+
+                if ($isOrderDelivered) {
+                    $this->markBonusAsAvailable($bonus);
+                }
+            } else {
+                // Заказ стал неактивным - очищаем available_at
+                if ($bonus->available_at !== null) {
+                    $this->revertBonusToAccrued($bonus);
+                }
             }
         }
     }

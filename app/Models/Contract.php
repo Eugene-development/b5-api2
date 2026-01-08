@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class Contract extends Model
@@ -190,11 +191,20 @@ class Contract extends Model
     }
 
     /**
-     * Get the agent bonus for this contract.
+     * Get the agent bonus for this contract (first/primary bonus).
+     * @deprecated Use agentBonuses() to get all bonuses including referral bonuses
      */
     public function agentBonus(): HasOne
     {
         return $this->hasOne(AgentBonus::class, 'contract_id');
+    }
+
+    /**
+     * Get all agent bonuses for this contract (agent + referral).
+     */
+    public function agentBonuses(): HasMany
+    {
+        return $this->hasMany(AgentBonus::class, 'contract_id');
     }
 
     /**
