@@ -233,7 +233,14 @@ class ReferralBonusService
      */
     private function getReferralUserStats(int $referrerId): array
     {
-        $referrals = User::where('user_id', $referrerId)->get();
+        // Получаем ключ реферера
+        $referrer = User::find($referrerId);
+        if (!$referrer || !$referrer->key) {
+            return [];
+        }
+
+        // Ищем рефералов по referrer_key
+        $referrals = User::where('referrer_key', $referrer->key)->get();
         $stats = [];
 
         foreach ($referrals as $referral) {
