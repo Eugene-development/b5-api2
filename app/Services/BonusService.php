@@ -195,7 +195,11 @@ class BonusService
     }
 
     /**
-     * Получить статистику бонусов агента.
+     * Получить статистику бонусов агента (агентские + реферальные).
+     *
+     * Учитывает оба типа бонусов:
+     * - agent: бонусы за собственные договора и заказы агента
+     * - referral: бонусы за договора и заказы рефералов агента
      *
      * @param int $agentId
      * @param array|null $filters
@@ -232,6 +236,17 @@ class BonusService
                     $query->whereNotNull('contract_id');
                 } elseif ($filters['source_type'] === 'order') {
                     $query->whereNotNull('order_id');
+                }
+            }
+            // Фильтр по типу бонуса (agent/referral)
+            if (!empty($filters['bonus_type'])) {
+                if ($filters['bonus_type'] === 'agent') {
+                    $query->where(function ($q) {
+                        $q->where('bonus_type', 'agent')
+                          ->orWhereNull('bonus_type');
+                    });
+                } elseif ($filters['bonus_type'] === 'referral') {
+                    $query->where('bonus_type', 'referral');
                 }
             }
         }

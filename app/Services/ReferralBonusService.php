@@ -157,13 +157,23 @@ class ReferralBonusService
     /**
      * Получить ID реферера для пользователя.
      *
-     * @param int $userId ID пользователя
+     * Связь между реферером и рефералом осуществляется через:
+     * - referrer_key у реферала (ссылается на key реферера)
+     * - key у реферера (уникальный ключ пользователя)
+     *
+     * @param int $userId ID пользователя (реферала)
      * @return int|null ID реферера или null
      */
     public function getReferrerId(int $userId): ?int
     {
         $user = User::find($userId);
-        return $user?->user_id;
+        if (!$user || !$user->referrer_key) {
+            return null;
+        }
+
+        // Ищем реферера по его ключу (key), который совпадает с referrer_key реферала
+        $referrer = User::where('key', $user->referrer_key)->first();
+        return $referrer?->id;
     }
 
     /**
