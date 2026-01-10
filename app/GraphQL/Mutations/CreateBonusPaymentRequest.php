@@ -6,17 +6,26 @@ namespace App\GraphQL\Mutations;
 
 use App\Models\BonusPaymentRequest;
 use App\Models\BonusPaymentStatus;
+use App\Services\BonusPaymentService;
 use GraphQL\Error\Error;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 
 /**
  * Мутация для создания заявки на выплату бонуса.
  *
  * Feature: bonus-payments
- * Requirements: 3.1, 3.2, 3.4, 3.5, 3.6, 3.7, 3.8, 2.4
+ * Requirements: 3.1, 3.2, 3.3, 3.4, 3.5, 3.6, 3.7, 3.8, 2.4, 8.3, 11.2, 11.4
  */
 final readonly class CreateBonusPaymentRequest
 {
+    private BonusPaymentService $bonusPaymentService;
+
+    public function __construct(?BonusPaymentService $bonusPaymentService = null)
+    {
+        $this->bonusPaymentService = $bonusPaymentService ?? new BonusPaymentService();
+    }
+
     /**
      * Создать заявку на выплату бонуса.
      *
@@ -40,6 +49,15 @@ final readonly class CreateBonusPaymentRequest
             throw new Error('Сумма выплаты должна быть больше нуля');
         }
 
+        // Валидация суммы против доступного баланса (Property 7: Balance Validation)
+        $availableBalance = $this->bonusPaymentService->calculateAvailableBalance($user->id);
+        if ($amount > $availableBalance) {
+            throw new Error(
+                "Сумма превышает доступный баланс. Доступно: " .
+                number_format($availableBalance, 2, '.', ' ') . " ₽"
+            );
+        }
+
         // Валидация способа оплаты
         $paymentMethod = $input['payment_method'];
         if (!in_array($paymentMethod, ['card', 'sbp', 'other'])) {
@@ -55,20 +73,28 @@ final readonly class CreateBonusPaymentRequest
             throw new Error('Статус "requested" не найден в системе');
         }
 
-        // Создаём заявку
-        $request = BonusPaymentRequest::create([
-            'agent_id' => $user->id,
-            'amount' => $amount,
-            'payment_method' => $paymentMethod,
-            'card_number' => $paymentMethod === 'card' ? ($input['card_number'] ?? null) : null,
-            'phone_number' => $paymentMethod === 'sbp' ? ($input['phone_number'] ?? null) : null,
-            'contact_info' => $paymentMethod === 'other' ? ($input['contact_info'] ?? null) : null,
-            'comment' => $input['comment'] ?? null,
-            'status_id' => $requestedStatus->id,
-        ]);
+        // Создаём заявку и связываем бонусы в транзакции
+        $request = DB::transaction(function () use ($user, $amount, $paymentMethod, $input, $requestedStatus) {
+            // Создаём заявку
+            $request = BonusPaymentRequest::create([
+                'agent_id' => $user->id,
+                'amount' => $amount,
+                'payment_method' => $paymentMethod,
+                'card_number' => $paymentMethod === 'card' ? ($input['card_number'] ?? null) : null,
+                'phone_number' => $paymentMethod === 'sbp' ? ($input['phone_number'] ?? null) : null,
+                'contact_info' => $paymentMethod === 'other' ? ($input['contact_info'] ?? null) : null,
+                'comment' => $input['comment'] ?? null,
+                'status_id' => $requestedStatus->id,
+            ]);
+
+            // Связываем бонусы с заявкой по FIFO
+            $this->bonusPaymentService->linkBonusesToPaymentRequest($request, $user->id, $amount);
+
+            return $request;
+        });
 
         // Загружаем связи для возврата
-        $request->load(['agent', 'status']);
+        $request->load(['agent', 'status', 'linkedBonuses.bonus']);
 
         return $request;
     }

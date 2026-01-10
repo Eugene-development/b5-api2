@@ -7,6 +7,17 @@ type BonusPaymentStatus {
     color: String!
 }
 
+"Связь заявки на выплату с бонусом"
+type BonusPaymentRequestBonus {
+    id: ID!
+    payment_request_id: ID!
+    bonus_id: ID!
+    bonus: AgentBonus @belongsTo
+    covered_amount: Float!
+    created_at: DateTime!
+    updated_at: DateTime!
+}
+
 "Заявка на выплату бонуса"
 type BonusPaymentRequest {
     id: ID!
@@ -23,6 +34,8 @@ type BonusPaymentRequest {
     payment_date: DateTime
     created_at: DateTime!
     updated_at: DateTime!
+    "Связанные бонусы с информацией о покрытии"
+    linkedBonuses: [BonusPaymentRequestBonus!]! @hasMany
 }
 
 "Входные данные для создания заявки на выплату"

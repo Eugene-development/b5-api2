@@ -5,6 +5,8 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
  * Модель заявки на выплату бонуса.
@@ -50,6 +52,27 @@ class BonusPaymentRequest extends Model
     public function status(): BelongsTo
     {
         return $this->belongsTo(BonusPaymentStatus::class, 'status_id');
+    }
+
+    /**
+     * Получить связи с бонусами (через связующую таблицу).
+     */
+    public function linkedBonuses(): HasMany
+    {
+        return $this->hasMany(BonusPaymentRequestBonus::class, 'payment_request_id');
+    }
+
+    /**
+     * Получить бонусы, связанные с заявкой.
+     */
+    public function bonuses(): BelongsToMany
+    {
+        return $this->belongsToMany(
+            AgentBonus::class,
+            'bonus_payment_request_bonuses',
+            'payment_request_id',
+            'bonus_id'
+        )->withPivot('covered_amount')->withTimestamps();
     }
 
     /**

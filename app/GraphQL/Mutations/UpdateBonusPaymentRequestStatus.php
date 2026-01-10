@@ -6,16 +6,25 @@ namespace App\GraphQL\Mutations;
 
 use App\Models\BonusPaymentRequest;
 use App\Models\BonusPaymentStatus;
+use App\Services\BonusPaymentService;
 use GraphQL\Error\Error;
+use Illuminate\Support\Facades\DB;
 
 /**
  * Мутация для обновления статуса заявки на выплату бонуса.
  *
  * Feature: bonus-payments
- * Requirements: 5.1, 5.2, 5.3, 5.4
+ * Requirements: 5.1, 5.2, 5.3, 5.4, 10.1, 10.5
  */
 final readonly class UpdateBonusPaymentRequestStatus
 {
+    private BonusPaymentService $bonusPaymentService;
+
+    public function __construct(?BonusPaymentService $bonusPaymentService = null)
+    {
+        $this->bonusPaymentService = $bonusPaymentService ?? new BonusPaymentService();
+    }
+
     /**
      * Обновить статус заявки на выплату.
      *
@@ -30,34 +39,50 @@ final readonly class UpdateBonusPaymentRequestStatus
         $statusCode = $args['status_code'];
 
         // Находим заявку
-        $request = BonusPaymentRequest::find($requestId);
+        $request = BonusPaymentRequest::with(['status'])->find($requestId);
         if (!$request) {
             throw new Error('Заявка на выплату не найдена');
         }
 
         // Валидация статуса (Property 5: Valid Status Transition)
-        $status = BonusPaymentStatus::findByCode($statusCode);
-        if (!$status) {
+        $newStatus = BonusPaymentStatus::findByCode($statusCode);
+        if (!$newStatus) {
             throw new Error("Статус '{$statusCode}' не найден в системе");
         }
 
-        // Подготавливаем данные для обновления
-        $updateData = ['status_id' => $status->id];
+        // Определяем текущий статус
+        $currentStatusCode = $request->status ? $request->status->code : null;
+        $isTransitionToPaid = $statusCode === 'paid' && $currentStatusCode !== 'paid';
+        $isTransitionFromPaid = $currentStatusCode === 'paid' && $statusCode !== 'paid';
 
-        // Property 4: Status Update with Payment Date
-        // При переходе в статус "paid" автоматически устанавливаем дату выплаты
-        if ($statusCode === 'paid') {
-            $updateData['payment_date'] = now();
-        } else {
-            // При переходе в любой другой статус очищаем дату выплаты
-            $updateData['payment_date'] = null;
-        }
+        // Выполняем обновление в транзакции
+        DB::transaction(function () use ($request, $newStatus, $statusCode, $isTransitionToPaid, $isTransitionFromPaid) {
+            // Подготавливаем данные для обновления
+            $updateData = ['status_id' => $newStatus->id];
 
-        // Обновляем заявку
-        $request->update($updateData);
+            // Property 4: Status Update with Payment Date
+            if ($statusCode === 'paid') {
+                $updateData['payment_date'] = now();
+            } else {
+                $updateData['payment_date'] = null;
+            }
+
+            // Обновляем заявку
+            $request->update($updateData);
+
+            // Автоматическое погашение бонусов при переходе в статус "paid"
+            if ($isTransitionToPaid) {
+                $this->bonusPaymentService->settleBonuses($request);
+            }
+
+            // Откат погашения при переходе из статуса "paid"
+            if ($isTransitionFromPaid) {
+                $this->bonusPaymentService->rollbackSettlement($request);
+            }
+        });
 
         // Перезагружаем заявку со связями
-        $request = BonusPaymentRequest::with(['agent', 'status'])->find($requestId);
+        $request = BonusPaymentRequest::with(['agent', 'status', 'linkedBonuses.bonus'])->find($requestId);
 
         return $request;
     }
