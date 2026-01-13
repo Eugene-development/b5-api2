@@ -17,10 +17,15 @@ class BonusPaymentRequest extends Model
 {
     use HasFactory;
 
+    // Типы запрашивающего
+    public const REQUESTER_AGENT = 'agent';
+    public const REQUESTER_CURATOR = 'curator';
+
     protected $table = 'bonus_payment_requests';
 
     protected $fillable = [
         'agent_id',
+        'requester_type',
         'amount',
         'payment_method',
         'card_number',
@@ -130,6 +135,42 @@ class BonusPaymentRequest extends Model
             'sbp' => 'СБП',
             'other' => 'Другое',
             default => 'Не указан',
+        };
+    }
+
+    /**
+     * Scope: Заявки от агентов.
+     */
+    public function scopeFromAgents($query)
+    {
+        return $query->where('requester_type', self::REQUESTER_AGENT);
+    }
+
+    /**
+     * Scope: Заявки от кураторов.
+     */
+    public function scopeFromCurators($query)
+    {
+        return $query->where('requester_type', self::REQUESTER_CURATOR);
+    }
+
+    /**
+     * Scope: Заявки определённого типа.
+     */
+    public function scopeOfRequesterType($query, string $type)
+    {
+        return $query->where('requester_type', $type);
+    }
+
+    /**
+     * Получить название типа запрашивающего на русском.
+     */
+    public function getRequesterTypeNameAttribute(): string
+    {
+        return match ($this->requester_type) {
+            self::REQUESTER_AGENT => 'Агент',
+            self::REQUESTER_CURATOR => 'Куратор',
+            default => 'Неизвестно',
         };
     }
 }

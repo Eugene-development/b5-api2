@@ -23,6 +23,7 @@ type BonusPaymentRequest {
     id: ID!
     agent_id: ID!
     agent: User @belongsTo
+    requester_type: String!
     amount: Float!
     payment_method: String!
     card_number: String
@@ -42,16 +43,20 @@ type BonusPaymentRequest {
 input CreateBonusPaymentRequestInput {
     amount: Float! @rules(apply: ["required", "numeric", "min:1"])
     payment_method: String! @rules(apply: ["required", "in:card,sbp,other"])
+    requester_type: String @rules(apply: ["in:agent,curator"])
     card_number: String
     phone_number: String
     contact_info: String
     comment: String
 }
 
+
 "Фильтры для заявок на выплату"
 input BonusPaymentRequestFilters {
     "ID статуса"
     status_id: ID
+    "Тип запрашивающего (agent, curator)"
+    requester_type: String
     "Дата создания от"
     date_from: DateTime
     "Дата создания до"

@@ -75,9 +75,13 @@ final readonly class CreateBonusPaymentRequest
 
         // Создаём заявку и связываем бонусы в транзакции
         $request = DB::transaction(function () use ($user, $amount, $paymentMethod, $input, $requestedStatus) {
+            // Определяем тип запрашивающего (по умолчанию agent)
+            $requesterType = $input['requester_type'] ?? BonusPaymentRequest::REQUESTER_AGENT;
+            
             // Создаём заявку
             $request = BonusPaymentRequest::create([
                 'agent_id' => $user->id,
+                'requester_type' => $requesterType,
                 'amount' => $amount,
                 'payment_method' => $paymentMethod,
                 'card_number' => $paymentMethod === 'card' ? ($input['card_number'] ?? null) : null,
