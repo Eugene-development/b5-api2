@@ -2,7 +2,7 @@
 
 namespace App\Services;
 
-use App\Models\AgentBonus;
+use App\Models\Bonus;
 use App\Models\BonusPaymentRequest;
 use App\Models\BonusPaymentRequestBonus;
 use App\Models\BonusStatus;
@@ -23,7 +23,7 @@ use Illuminate\Support\Facades\DB;
 class BonusPaymentService
 {
     /**
-     * Получить доступные бонусы агента для выплаты.
+     * Получить доступные бонусы пользователя для выплаты.
      *
      * Возвращает бонусы, отсортированные по дате начисления (FIFO).
      * Бонус доступен если:
@@ -31,18 +31,18 @@ class BonusPaymentService
      * - Для договоров: договор выполнен И оплачен партнёром
      * - Для заказов: заказ доставлен
      *
-     * @param int $agentId
-     * @return Collection<AgentBonus>
+     * @param int $userId
+     * @return Collection<Bonus>
      */
-    public function getAvailableBonuses(int $agentId): Collection
+    public function getAvailableBonuses(int $userId): Collection
     {
-        return AgentBonus::where('agent_id', $agentId)
+        return Bonus::where('user_id', $userId)
             ->whereNull('paid_at')
             ->where('commission_amount', '>', 0)
             ->with(['contract.status', 'contract.partnerPaymentStatus', 'order.status'])
             ->orderBy('accrued_at', 'asc')
             ->get()
-            ->filter(function (AgentBonus $bonus) {
+            ->filter(function (Bonus $bonus) {
                 return $this->isBonusAvailableForPayment($bonus);
             })
             ->values();
@@ -51,10 +51,10 @@ class BonusPaymentService
     /**
      * Проверить, доступен ли бонус для выплаты.
      *
-     * @param AgentBonus $bonus
+     * @param Bonus $bonus
      * @return bool
      */
-    public function isBonusAvailableForPayment(AgentBonus $bonus): bool
+    public function isBonusAvailableForPayment(Bonus $bonus): bool
     {
         if ($bonus->paid_at !== null) {
             return false;
@@ -81,16 +81,16 @@ class BonusPaymentService
     }
 
     /**
-     * Рассчитать общую сумму доступных бонусов агента.
+     * Рассчитать общую сумму доступных бонусов пользователя.
      *
-     * @param int $agentId
+     * @param int $userId
      * @return float
      */
-    public function calculateAvailableBalance(int $agentId): float
+    public function calculateAvailableBalance(int $userId): float
     {
-        $availableBonuses = $this->getAvailableBonuses($agentId);
+        $availableBonuses = $this->getAvailableBonuses($userId);
 
-        return $availableBonuses->sum(function (AgentBonus $bonus) {
+        return $availableBonuses->sum(function (Bonus $bonus) {
             return (float) $bonus->commission_amount;
         });
     }
@@ -102,16 +102,16 @@ class BonusPaymentService
      * Каждый бонус покрывается полностью или частично.
      *
      * @param BonusPaymentRequest $request
-     * @param int $agentId
+     * @param int $userId
      * @param float $amount
      * @return array Массив связанных бонусов с информацией о покрытии
      */
     public function linkBonusesToPaymentRequest(
         BonusPaymentRequest $request,
-        int $agentId,
+        int $userId,
         float $amount
     ): array {
-        $availableBonuses = $this->getAvailableBonuses($agentId);
+        $availableBonuses = $this->getAvailableBonuses($userId);
         $remainingAmount = $amount;
         $linkedBonuses = [];
 
@@ -177,17 +177,19 @@ class BonusPaymentService
                     $remainingAmount = $bonusAmount - $coveredAmount;
 
                     // Создаём новый бонус с остатком
-                    AgentBonus::create([
-                        'agent_id' => $bonus->agent_id,
+                    Bonus::create([
+                        'user_id' => $bonus->user_id,
                         'contract_id' => $bonus->contract_id,
                         'order_id' => $bonus->order_id,
                         'commission_amount' => $remainingAmount,
+                        'percentage' => $bonus->percentage,
                         'status_id' => $pendingStatusId,
+                        'recipient_type' => $bonus->recipient_type,
+                        'bonus_type' => $bonus->bonus_type,
+                        'referral_user_id' => $bonus->referral_user_id,
                         'accrued_at' => $bonus->accrued_at,
                         'available_at' => $bonus->available_at,
                         'paid_at' => null,
-                        'bonus_type' => $bonus->bonus_type,
-                        'referral_user_id' => $bonus->referral_user_id,
                     ]);
 
                     // Обновляем оригинальный бонус
@@ -223,7 +225,7 @@ class BonusPaymentService
                 $coveredAmount = (float) $link->covered_amount;
 
                 // Ищем "остаточный" бонус, созданный при частичном покрытии
-                // Он имеет те же contract_id/order_id, тот же agent_id, ту же дату начисления,
+                // Он имеет те же contract_id/order_id, тот же user_id, ту же дату начисления,
                 // но paid_at = NULL и был создан после оригинального бонуса
                 $remainderBonus = $this->findRemainderBonus($bonus);
 
@@ -252,12 +254,12 @@ class BonusPaymentService
     /**
      * Найти остаточный бонус, созданный при частичном покрытии.
      *
-     * @param AgentBonus $originalBonus
-     * @return AgentBonus|null
+     * @param Bonus $originalBonus
+     * @return Bonus|null
      */
-    private function findRemainderBonus(AgentBonus $originalBonus): ?AgentBonus
+    private function findRemainderBonus(Bonus $originalBonus): ?Bonus
     {
-        $query = AgentBonus::where('agent_id', $originalBonus->agent_id)
+        $query = Bonus::where('user_id', $originalBonus->user_id)
             ->whereNull('paid_at')
             ->where('id', '!=', $originalBonus->id);
 

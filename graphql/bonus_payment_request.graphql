@@ -12,7 +12,7 @@ type BonusPaymentRequestBonus {
     id: ID!
     payment_request_id: ID!
     bonus_id: ID!
-    bonus: AgentBonus @belongsTo
+    bonus: Bonus @belongsTo
     covered_amount: Float!
     created_at: DateTime!
     updated_at: DateTime!
