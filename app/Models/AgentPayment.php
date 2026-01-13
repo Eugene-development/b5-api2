@@ -66,8 +66,8 @@ class AgentPayment extends Model
     public function bonuses(): BelongsToMany
     {
         return $this->belongsToMany(
-            AgentBonus::class,
-            'agent_payment_bonuses',
+            Bonus::class,
+            'payment_bonuses',
             'payment_id',
             'bonus_id'
         );

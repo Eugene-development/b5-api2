@@ -4,12 +4,12 @@ declare(strict_types=1);
 
 namespace App\GraphQL\Queries;
 
-use App\Models\AgentBonus;
+use App\Models\Bonus;
 
 final readonly class AdminBonusesQuery
 {
     /**
-     * Get all agent bonuses for admin panel.
+     * Get all bonuses for admin panel.
      *
      * @param  null  $_
      * @param  array  $args
@@ -17,14 +17,14 @@ final readonly class AdminBonusesQuery
      */
     public function __invoke(null $_, array $args)
     {
-        $query = AgentBonus::with([
+        $query = Bonus::with([
             'status',
             'contract.status',
             'contract.partnerPaymentStatus',
             'contract.project.users',
             'order.partnerPaymentStatus',
             'order.project.users',
-            'agent'
+            'user'
         ]);
 
         // Применяем фильтры
@@ -44,10 +44,18 @@ final readonly class AdminBonusesQuery
             }
         }
 
-        if (!empty($filters['agent_id'])) {
-            $query->where('agent_id', $filters['agent_id']);
+        // Фильтр по user_id или agent_id (backward compatibility)
+        $userId = $filters['user_id'] ?? $filters['agent_id'] ?? null;
+        if (!empty($userId)) {
+            $query->where('user_id', $userId);
         }
 
+        // Фильтр по типу получателя
+        if (!empty($filters['recipient_type'])) {
+            $query->where('recipient_type', $filters['recipient_type']);
+        }
+
+        // Фильтр по типу бонуса (legacy)
         if (!empty($filters['bonus_type'])) {
             if ($filters['bonus_type'] === 'agent') {
                 $query->where(function ($q) {

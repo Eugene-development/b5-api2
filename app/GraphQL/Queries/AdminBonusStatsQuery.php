@@ -4,14 +4,14 @@ declare(strict_types=1);
 
 namespace App\GraphQL\Queries;
 
-use App\Models\AgentBonus;
+use App\Models\Bonus;
 use App\Models\BonusStatus;
 
 final readonly class AdminBonusStatsQuery
 {
     /**
      * Get bonus statistics for admin panel.
-     * 
+     *
      * Статистика рассчитывается на основе условий доступности:
      * - Для договоров: is_contract_completed И is_partner_paid И is_active
      * - Для заказов: status = 'delivered' И is_active
@@ -24,11 +24,16 @@ final readonly class AdminBonusStatsQuery
     {
         $filters = $args['filters'] ?? [];
 
-        $query = AgentBonus::with(['contract.status', 'contract.partnerPaymentStatus', 'order.status']);
+        $query = Bonus::with(['contract.status', 'contract.partnerPaymentStatus', 'order.status']);
 
         // Apply filters
-        if (!empty($filters['agent_id'])) {
-            $query->where('agent_id', $filters['agent_id']);
+        $userId = $filters['user_id'] ?? $filters['agent_id'] ?? null;
+        if (!empty($userId)) {
+            $query->where('user_id', $userId);
+        }
+
+        if (!empty($filters['recipient_type'])) {
+            $query->where('recipient_type', $filters['recipient_type']);
         }
 
         if (!empty($filters['date_from'])) {
@@ -46,6 +51,10 @@ final readonly class AdminBonusStatsQuery
         $totalPaid = 0.0;
         $totalReferral = 0.0;
         $referralCount = 0;
+        $totalAgent = 0.0;
+        $agentCount = 0;
+        $totalCurator = 0.0;
+        $curatorCount = 0;
         $contractsCount = 0;
         $ordersCount = 0;
 
@@ -60,8 +69,14 @@ final readonly class AdminBonusStatsQuery
                 $ordersCount++;
             }
 
-            // Count referral bonuses
-            if ($bonus->bonus_type === 'referral') {
+            // Count by recipient type
+            if ($bonus->recipient_type === Bonus::RECIPIENT_AGENT) {
+                $totalAgent += $amount;
+                $agentCount++;
+            } elseif ($bonus->recipient_type === Bonus::RECIPIENT_CURATOR) {
+                $totalCurator += $amount;
+                $curatorCount++;
+            } elseif ($bonus->recipient_type === Bonus::RECIPIENT_REFERRER) {
                 $totalReferral += $amount;
                 $referralCount++;
             }
@@ -74,21 +89,21 @@ final readonly class AdminBonusStatsQuery
 
             // Определяем доступность бонуса к выплате
             $isAvailable = false;
-            
+
             if ($bonus->contract_id && $bonus->contract) {
                 // Для договоров: проверяем is_contract_completed И is_partner_paid
                 $contract = $bonus->contract;
                 $isContractCompleted = $contract->status && $contract->status->slug === 'completed';
                 $isPartnerPaid = $contract->partnerPaymentStatus && $contract->partnerPaymentStatus->code === 'paid';
                 $isContractActive = $contract->is_active === true;
-                
+
                 $isAvailable = $isContractCompleted && $isPartnerPaid && $isContractActive;
             } elseif ($bonus->order_id && $bonus->order) {
                 // Для заказов: проверяем статус доставки
                 $order = $bonus->order;
                 $isOrderDelivered = $order->status && $order->status->slug === 'delivered';
                 $isOrderActive = $order->is_active === true;
-                
+
                 $isAvailable = $isOrderDelivered && $isOrderActive;
             }
 
@@ -107,6 +122,10 @@ final readonly class AdminBonusStatsQuery
             'orders_count' => $ordersCount,
             'total_referral' => round($totalReferral, 2),
             'referral_count' => $referralCount,
+            'total_agent' => round($totalAgent, 2),
+            'agent_count' => $agentCount,
+            'total_curator' => round($totalCurator, 2),
+            'curator_count' => $curatorCount,
         ];
     }
 }

@@ -68,8 +68,8 @@ class BonusPaymentRequest extends Model
     public function bonuses(): BelongsToMany
     {
         return $this->belongsToMany(
-            AgentBonus::class,
-            'bonus_payment_request_bonuses',
+            Bonus::class,
+            'payment_request_bonuses',
             'payment_request_id',
             'bonus_id'
         )->withPivot('covered_amount')->withTimestamps();

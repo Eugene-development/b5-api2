@@ -14,16 +14,24 @@ type PartnerPaymentStatus {
     description: String
 }
 
-"Бонус агента"
+"Бонус (единая модель для агентов, кураторов и рефереров)"
 type AgentBonus {
     id: ID!
-    agent_id: ID!
-    agent: User @belongsTo
+    "ID пользователя-получателя бонуса"
+    user_id: ID!
+    "Пользователь-получатель бонуса"
+    user: User @belongsTo
+    "ID агента (alias для user_id, backward compatibility)"
+    agent_id: ID! @rename(attribute: "user_id")
+    "Агент (alias для user, backward compatibility)"
+    agent: User @belongsTo(relation: "user")
     contract_id: ID
     contract: Contract @belongsTo
     order_id: ID
     order: Order @belongsTo
     commission_amount: Float!
+    "Процент бонуса"
+    percentage: Float
     status_id: ID!
     status: BonusStatus @belongsTo
     accrued_at: DateTime!
@@ -31,7 +39,11 @@ type AgentBonus {
     paid_at: DateTime
     created_at: DateTime!
     updated_at: DateTime!
-    "Тип бонуса: agent или referral"
+    "Тип получателя: agent, curator, referrer"
+    recipient_type: String!
+    "Человекочитаемый тип получателя"
+    recipient_type_label: String! @method(name: "getRecipientTypeLabelAttribute")
+    "Тип бонуса: agent или referral (legacy)"
     bonus_type: String
     "ID реферала, за сделку которого начислен бонус (только для referral)"
     referral_user_id: ID
@@ -43,11 +55,48 @@ type AgentBonus {
     source_amount: Float! @method(name: "getSourceAmountAttribute")
     "Название проекта"
     project_name: String @method(name: "getProjectNameAttribute")
+    "Номер договора"
+    contract_number: String @method(name: "getContractNumberAttribute")
+    "Номер заказа"
+    order_number: String @method(name: "getOrderNumberAttribute")
     "Выполнен ли договор (статус = completed). Для заказов = null"
     is_contract_completed: Boolean @method(name: "getIsContractCompletedAttribute")
     "Оплачен ли договор партнёром (partner_payment_status = paid). Для заказов = null"
     is_partner_paid: Boolean @method(name: "getIsPartnerPaidAttribute")
     "Человекочитаемый тип бонуса"
+    bonus_type_label: String @method(name: "getBonusTypeLabelAttribute")
+}
+
+"Alias для AgentBonus (для совместимости)"
+type Bonus {
+    id: ID!
+    user_id: ID!
+    user: User @belongsTo
+    contract_id: ID
+    contract: Contract @belongsTo
+    order_id: ID
+    order: Order @belongsTo
+    commission_amount: Float!
+    percentage: Float
+    status_id: ID!
+    status: BonusStatus @belongsTo
+    accrued_at: DateTime!
+    available_at: DateTime
+    paid_at: DateTime
+    created_at: DateTime!
+    updated_at: DateTime!
+    recipient_type: String!
+    recipient_type_label: String! @method(name: "getRecipientTypeLabelAttribute")
+    bonus_type: String
+    referral_user_id: ID
+    referralUser: User @belongsTo
+    source_type: String! @method(name: "getSourceTypeAttribute")
+    source_amount: Float! @method(name: "getSourceAmountAttribute")
+    project_name: String @method(name: "getProjectNameAttribute")
+    contract_number: String @method(name: "getContractNumberAttribute")
+    order_number: String @method(name: "getOrderNumberAttribute")
+    is_contract_completed: Boolean @method(name: "getIsContractCompletedAttribute")
+    is_partner_paid: Boolean @method(name: "getIsPartnerPaidAttribute")
     bonus_type_label: String @method(name: "getBonusTypeLabelAttribute")
 }
 
@@ -77,6 +126,14 @@ type AdminBonusStats {
     total_referral: Float!
     "Количество реферальных бонусов"
     referral_count: Int!
+    "Общая сумма агентских бонусов"
+    total_agent: Float!
+    "Количество агентских бонусов"
+    agent_count: Int!
+    "Общая сумма кураторских бонусов"
+    total_curator: Float!
+    "Количество кураторских бонусов"
+    curator_count: Int!
 }
 
 "Фильтры для бонусов агента"
@@ -85,14 +142,18 @@ input AgentBonusFilters {
     status_code: String
     "Тип источника (contract, order)"
     source_type: String
-    "Тип бонуса (agent, referral)"
+    "Тип получателя (agent, curator, referrer)"
+    recipient_type: String
+    "Тип бонуса (agent, referral) - legacy"
     bonus_type: String
     "Дата начисления от"
     date_from: DateTime
     "Дата начисления до"
     date_to: DateTime
-    "ID агента (для админки)"
+    "ID агента/пользователя (для админки)"
     agent_id: ID
+    "ID пользователя (alias для agent_id)"
+    user_id: ID
 }
 
 "Статистика реферальных бонусов"

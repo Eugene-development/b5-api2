@@ -2,7 +2,6 @@
 
 namespace App\Models;
 
-use App\Services\BonusCalculationService;
 use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -37,15 +36,19 @@ class Order extends Model
             }
         });
 
-        // Автоматический пересчёт бонусов при сохранении закупки
-        static::saving(function ($order) {
-            app(BonusCalculationService::class)->recalculateOrderBonuses($order);
-        });
+        // Автоматический пересчёт бонусов при сохранении закупки удалён
+        // Бонусы теперь хранятся в таблице bonuses
 
-        // Создаем запись в agent_bonuses при создании закупки
+        // Создаем записи в bonuses при создании закупки
         static::created(function ($order) {
             $bonusService = app(\App\Services\BonusService::class);
             $bonusService->createBonusForOrder($order);
+        });
+
+        // Обновляем бонусы при изменении закупки
+        static::updated(function ($order) {
+            $bonusService = app(\App\Services\BonusService::class);
+            $bonusService->updateBonusesForOrder($order);
         });
 
         // Обновляем updated_at проекта при изменении закупки
@@ -111,8 +114,6 @@ class Order extends Model
         'order_amount',
         'agent_percentage',
         'curator_percentage',
-        'agent_bonus',
-        'curator_bonus',
         'partner_payment_status_id',
         'partner_payment_date',
         'status_id',
@@ -127,8 +128,6 @@ class Order extends Model
     protected $attributes = [
         'agent_percentage' => 5.00,
         'curator_percentage' => 5.00,
-        'agent_bonus' => 0,
-        'curator_bonus' => 0,
     ];
 
     /**
@@ -144,8 +143,6 @@ class Order extends Model
         'order_amount' => 'decimal:2',
         'agent_percentage' => 'decimal:2',
         'curator_percentage' => 'decimal:2',
-        'agent_bonus' => 'decimal:2',
-        'curator_bonus' => 'decimal:2',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
     ];
@@ -191,20 +188,38 @@ class Order extends Model
     }
 
     /**
-     * Get the agent bonus for this order (first/primary bonus).
-     * @deprecated Use agentBonuses() to get all bonuses including referral bonuses
+     * Get the agent bonus for this order.
      */
     public function agentBonus(): HasOne
     {
-        return $this->hasOne(AgentBonus::class, 'order_id');
+        return $this->hasOne(Bonus::class, 'order_id')
+            ->where('recipient_type', Bonus::RECIPIENT_AGENT);
+    }
+
+    /**
+     * Get the curator bonus for this order.
+     */
+    public function curatorBonus(): HasOne
+    {
+        return $this->hasOne(Bonus::class, 'order_id')
+            ->where('recipient_type', Bonus::RECIPIENT_CURATOR);
+    }
+
+    /**
+     * Get all bonuses for this order (agent, curator, referral).
+     */
+    public function bonuses(): HasMany
+    {
+        return $this->hasMany(Bonus::class, 'order_id');
     }
 
     /**
      * Get all agent bonuses for this order (agent + referral).
+     * @deprecated Use bonuses() instead
      */
     public function agentBonuses(): HasMany
     {
-        return $this->hasMany(AgentBonus::class, 'order_id');
+        return $this->hasMany(Bonus::class, 'order_id');
     }
 
     /**

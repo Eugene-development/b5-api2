@@ -2,7 +2,7 @@
 
 namespace App\Services;
 
-use App\Models\AgentBonus;
+use App\Models\Bonus;
 use App\Models\BonusStatus;
 use App\Models\Contract;
 use App\Models\Order;
@@ -51,9 +51,9 @@ class ReferralBonusService
      *
      * @param Contract $contract
      * @param int $agentId ID агента (реферала), совершившего сделку
-     * @return AgentBonus|null
+     * @return Bonus|null
      */
-    public function createReferralBonusForContract(Contract $contract, int $agentId): ?AgentBonus
+    public function createReferralBonusForContract(Contract $contract, int $agentId): ?Bonus
     {
         // Получаем реферера агента
         $referrerId = $this->getReferrerId($agentId);
@@ -86,16 +86,18 @@ class ReferralBonusService
             'commission_amount' => $commissionAmount
         ]);
 
-        return AgentBonus::create([
-            'agent_id' => $referrerId,
+        return Bonus::create([
+            'user_id' => $referrerId,
             'contract_id' => $contract->id,
             'order_id' => null,
             'commission_amount' => $commissionAmount,
+            'percentage' => self::REFERRAL_COMMISSION_PERCENTAGE,
             'status_id' => BonusStatus::pendingId(),
+            'recipient_type' => Bonus::RECIPIENT_REFERRER,
+            'bonus_type' => 'referral',
             'accrued_at' => now(),
             'available_at' => null,
             'paid_at' => null,
-            'bonus_type' => 'referral',
             'referral_user_id' => $agentId,
         ]);
     }
@@ -105,9 +107,9 @@ class ReferralBonusService
      *
      * @param Order $order
      * @param int $agentId ID агента (реферала), совершившего сделку
-     * @return AgentBonus|null
+     * @return Bonus|null
      */
-    public function createReferralBonusForOrder(Order $order, int $agentId): ?AgentBonus
+    public function createReferralBonusForOrder(Order $order, int $agentId): ?Bonus
     {
         // Получаем реферера агента
         $referrerId = $this->getReferrerId($agentId);
@@ -140,16 +142,18 @@ class ReferralBonusService
             'commission_amount' => $commissionAmount
         ]);
 
-        return AgentBonus::create([
-            'agent_id' => $referrerId,
+        return Bonus::create([
+            'user_id' => $referrerId,
             'contract_id' => null,
             'order_id' => $order->id,
             'commission_amount' => $commissionAmount,
+            'percentage' => self::REFERRAL_COMMISSION_PERCENTAGE,
             'status_id' => BonusStatus::pendingId(),
+            'recipient_type' => Bonus::RECIPIENT_REFERRER,
+            'bonus_type' => 'referral',
             'accrued_at' => now(),
             'available_at' => null,
             'paid_at' => null,
-            'bonus_type' => 'referral',
             'referral_user_id' => $agentId,
         ]);
     }
@@ -203,8 +207,8 @@ class ReferralBonusService
      */
     public function getReferralStats(int $referrerId): array
     {
-        $bonuses = AgentBonus::where('agent_id', $referrerId)
-            ->where('bonus_type', 'referral')
+        $bonuses = Bonus::where('user_id', $referrerId)
+            ->where('recipient_type', Bonus::RECIPIENT_REFERRER)
             ->with(['contract.status', 'contract.partnerPaymentStatus', 'order.status'])
             ->get();
 
@@ -223,21 +227,21 @@ class ReferralBonusService
 
             // Определяем доступность бонуса к выплате (как в BonusService::getAgentStats)
             $isAvailable = false;
-            
+
             if ($bonus->contract_id && $bonus->contract) {
                 // Для договоров: проверяем is_contract_completed И is_partner_paid
                 $contract = $bonus->contract;
                 $isContractCompleted = $contract->status && $contract->status->slug === 'completed';
                 $isPartnerPaid = $contract->partnerPaymentStatus && $contract->partnerPaymentStatus->code === 'paid';
                 $isContractActive = $contract->is_active === true;
-                
+
                 $isAvailable = $isContractCompleted && $isPartnerPaid && $isContractActive;
             } elseif ($bonus->order_id && $bonus->order) {
                 // Для заказов: проверяем статус доставки
                 $order = $bonus->order;
                 $isOrderDelivered = $order->status && $order->status->slug === 'delivered';
                 $isOrderActive = $order->is_active === true;
-                
+
                 $isAvailable = $isOrderDelivered && $isOrderActive;
             }
 
@@ -279,8 +283,8 @@ class ReferralBonusService
         $stats = [];
 
         foreach ($referrals as $referral) {
-            $bonusSum = AgentBonus::where('agent_id', $referrerId)
-                ->where('bonus_type', 'referral')
+            $bonusSum = Bonus::where('user_id', $referrerId)
+                ->where('recipient_type', Bonus::RECIPIENT_REFERRER)
                 ->where('referral_user_id', $referral->id)
                 ->sum('commission_amount');
 

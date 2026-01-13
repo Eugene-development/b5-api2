@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\GraphQL\Mutations;
 
-use App\Models\AgentBonus;
+use App\Models\Bonus;
 use App\Models\BonusStatus;
 use Carbon\Carbon;
 
@@ -23,11 +23,11 @@ final readonly class UpdateBonusStatus
      *
      * @param  null  $_
      * @param  array  $args
-     * @return AgentBonus
+     * @return Bonus
      */
-    public function __invoke(null $_, array $args): AgentBonus
+    public function __invoke(null $_, array $args): Bonus
     {
-        $bonus = AgentBonus::with(['contract.status', 'contract.partnerPaymentStatus', 'order.status'])->findOrFail($args['bonus_id']);
+        $bonus = Bonus::with(['contract.status', 'contract.partnerPaymentStatus', 'order.status'])->findOrFail($args['bonus_id']);
         $status = BonusStatus::where('code', $args['status_code'])->firstOrFail();
 
         $bonus->status_id = $status->id;
@@ -50,7 +50,7 @@ final readonly class UpdateBonusStatus
         // Clear paid_at if status is not paid
         if ($args['status_code'] !== 'paid') {
             $bonus->paid_at = null;
-            
+
             // При возврате с 'paid' на другой статус (кроме pending), проверяем условия доступности
             // и восстанавливаем available_at если условия выполнены
             if ($args['status_code'] !== 'pending' && $bonus->available_at === null) {
@@ -73,32 +73,32 @@ final readonly class UpdateBonusStatus
      * Для договоров: статус договора = 'completed' И статус оплаты партнёром = 'paid' И договор активен
      * Для заказов: статус заказа = 'delivered' И заказ активен
      *
-     * @param AgentBonus $bonus
+     * @param Bonus $bonus
      * @return bool
      */
-    private function checkBonusAvailabilityConditions(AgentBonus $bonus): bool
+    private function checkBonusAvailabilityConditions(Bonus $bonus): bool
     {
         // Для договоров
         if ($bonus->contract_id && $bonus->contract) {
             $contract = $bonus->contract;
-            
+
             $isContractCompleted = $contract->status && $contract->status->slug === 'completed';
             $isPartnerPaid = $contract->partnerPaymentStatus && $contract->partnerPaymentStatus->code === 'paid';
             $isContractActive = $contract->is_active === true;
-            
+
             return $isContractCompleted && $isPartnerPaid && $isContractActive;
         }
-        
+
         // Для заказов
         if ($bonus->order_id && $bonus->order) {
             $order = $bonus->order;
-            
+
             $isOrderDelivered = $order->status && $order->status->slug === 'delivered';
             $isOrderActive = $order->is_active === true;
-            
+
             return $isOrderDelivered && $isOrderActive;
         }
-        
+
         return false;
     }
 }

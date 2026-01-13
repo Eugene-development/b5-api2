@@ -4,13 +4,13 @@ declare(strict_types=1);
 
 namespace App\GraphQL\Queries;
 
-use App\Models\AgentBonus;
+use App\Models\Bonus;
 use Illuminate\Support\Facades\Auth;
 
 final readonly class AgentBonusesQuery
 {
     /**
-     * Get agent bonuses for the authenticated user.
+     * Get bonuses for the authenticated user.
      *
      * @param  null  $_
      * @param  array  $args
@@ -23,7 +23,7 @@ final readonly class AgentBonusesQuery
             return collect([]);
         }
 
-        $query = AgentBonus::where('agent_id', $user->id)
+        $query = Bonus::where('user_id', $user->id)
             ->with(['status', 'contract', 'contract.status', 'contract.partnerPaymentStatus', 'order', 'referralUser']);
 
         // Фильтруем бонусы: показываем только те, где договор в статусе "Заключён" или далее
@@ -57,6 +57,12 @@ final readonly class AgentBonusesQuery
             }
         }
 
+        // Фильтр по типу получателя
+        if (!empty($filters['recipient_type'])) {
+            $query->where('recipient_type', $filters['recipient_type']);
+        }
+
+        // Фильтр по типу бонуса (legacy)
         if (!empty($filters['bonus_type'])) {
             if ($filters['bonus_type'] === 'agent') {
                 $query->where(function ($q) {

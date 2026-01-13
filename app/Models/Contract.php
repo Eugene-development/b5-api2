@@ -2,7 +2,6 @@
 
 namespace App\Models;
 
-use App\Services\BonusCalculationService;
 use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -23,8 +22,6 @@ class Contract extends Model
     protected $attributes = [
         'agent_percentage' => 3.00,
         'curator_percentage' => 2.00,
-        'agent_bonus' => 0,
-        'curator_bonus' => 0,
         'is_active' => true,
     ];
 
@@ -71,14 +68,18 @@ class Contract extends Model
             if (empty($contract->curator_percentage) || floatval($contract->curator_percentage) == 0) {
                 $contract->curator_percentage = 2.00;
             }
-
-            app(BonusCalculationService::class)->recalculateContractBonuses($contract);
         });
 
-        // Создаем запись в agent_bonuses при создании договора
+        // Создаем записи в bonuses при создании договора
         static::created(function ($contract) {
             $bonusService = app(\App\Services\BonusService::class);
             $bonusService->createBonusForContract($contract);
+        });
+
+        // Обновляем бонусы при изменении договора
+        static::updated(function ($contract) {
+            $bonusService = app(\App\Services\BonusService::class);
+            $bonusService->updateBonusesForContract($contract);
         });
 
         // Обновляем updated_at проекта при изменении договора
@@ -132,8 +133,6 @@ class Contract extends Model
         'contract_amount',
         'agent_percentage',
         'curator_percentage',
-        'agent_bonus',
-        'curator_bonus',
         'partner_payment_date',
         'is_active',
         'status_id',
@@ -151,8 +150,6 @@ class Contract extends Model
         'contract_amount' => 'decimal:2',
         'agent_percentage' => 'decimal:2',
         'curator_percentage' => 'decimal:2',
-        'agent_bonus' => 'decimal:2',
-        'curator_bonus' => 'decimal:2',
         'is_active' => 'boolean',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
@@ -191,20 +188,38 @@ class Contract extends Model
     }
 
     /**
-     * Get the agent bonus for this contract (first/primary bonus).
-     * @deprecated Use agentBonuses() to get all bonuses including referral bonuses
+     * Get the agent bonus for this contract.
      */
     public function agentBonus(): HasOne
     {
-        return $this->hasOne(AgentBonus::class, 'contract_id');
+        return $this->hasOne(Bonus::class, 'contract_id')
+            ->where('recipient_type', Bonus::RECIPIENT_AGENT);
+    }
+
+    /**
+     * Get the curator bonus for this contract.
+     */
+    public function curatorBonus(): HasOne
+    {
+        return $this->hasOne(Bonus::class, 'contract_id')
+            ->where('recipient_type', Bonus::RECIPIENT_CURATOR);
+    }
+
+    /**
+     * Get all bonuses for this contract (agent, curator, referral).
+     */
+    public function bonuses(): HasMany
+    {
+        return $this->hasMany(Bonus::class, 'contract_id');
     }
 
     /**
      * Get all agent bonuses for this contract (agent + referral).
+     * @deprecated Use bonuses() instead
      */
     public function agentBonuses(): HasMany
     {
-        return $this->hasMany(AgentBonus::class, 'contract_id');
+        return $this->hasMany(Bonus::class, 'contract_id');
     }
 
     /**

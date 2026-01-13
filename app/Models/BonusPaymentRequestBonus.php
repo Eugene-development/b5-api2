@@ -19,7 +19,7 @@ class BonusPaymentRequestBonus extends Model
 {
     use HasFactory;
 
-    protected $table = 'bonus_payment_request_bonuses';
+    protected $table = 'payment_request_bonuses';
 
     protected $fillable = [
         'payment_request_id',
@@ -46,7 +46,7 @@ class BonusPaymentRequestBonus extends Model
      */
     public function bonus(): BelongsTo
     {
-        return $this->belongsTo(AgentBonus::class, 'bonus_id');
+        return $this->belongsTo(Bonus::class, 'bonus_id');
     }
 
     /**

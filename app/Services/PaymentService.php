@@ -2,14 +2,14 @@
 
 namespace App\Services;
 
-use App\Models\AgentBonus;
+use App\Models\Bonus;
 use App\Models\AgentPayment;
 use App\Models\BonusStatus;
 use App\Models\PaymentStatus;
 use Illuminate\Support\Facades\DB;
 
 /**
- * Сервис для управления выплатами агентам.
+ * Сервис для управления выплатами.
  *
  * Управляет созданием выплат и обновлением статусов бонусов:
  * - Создание выплаты с группировкой бонусов
@@ -21,7 +21,7 @@ class PaymentService
     /**
      * Рассчитать общую сумму выплаты.
      *
-     * @param array $bonuses Массив AgentBonus или массив ID бонусов
+     * @param array $bonuses Массив Bonus или массив ID бонусов
      * @return float
      */
     public function calculatePaymentTotal(array $bonuses): float
@@ -29,10 +29,10 @@ class PaymentService
         $total = 0.0;
 
         foreach ($bonuses as $bonus) {
-            if ($bonus instanceof AgentBonus) {
+            if ($bonus instanceof Bonus) {
                 $total += (float) $bonus->commission_amount;
             } elseif (is_numeric($bonus)) {
-                $bonusModel = AgentBonus::find($bonus);
+                $bonusModel = Bonus::find($bonus);
                 if ($bonusModel) {
                     $total += (float) $bonusModel->commission_amount;
                 }
@@ -43,9 +43,9 @@ class PaymentService
     }
 
     /**
-     * Создать выплату агенту.
+     * Создать выплату пользователю.
      *
-     * @param int $agentId ID агента
+     * @param int $userId ID пользователя
      * @param array $bonusIds Массив ID бонусов для включения в выплату
      * @param int $methodId ID способа выплаты
      * @param string|null $referenceNumber Номер платёжного документа
@@ -53,7 +53,7 @@ class PaymentService
      * @throws \InvalidArgumentException
      */
     public function createPayment(
-        int $agentId,
+        int $userId,
         array $bonusIds,
         int $methodId,
         ?string $referenceNumber = null
@@ -63,13 +63,13 @@ class PaymentService
         }
 
 
-        // Проверяем, что все бонусы принадлежат агенту и доступны к выплате
-        $bonuses = AgentBonus::whereIn('id', $bonusIds)
-            ->where('agent_id', $agentId)
+        // Проверяем, что все бонусы принадлежат пользователю и доступны к выплате
+        $bonuses = Bonus::whereIn('id', $bonusIds)
+            ->where('user_id', $userId)
             ->get();
 
         if ($bonuses->count() !== count($bonusIds)) {
-            throw new \InvalidArgumentException('Некоторые бонусы не найдены или не принадлежат агенту');
+            throw new \InvalidArgumentException('Некоторые бонусы не найдены или не принадлежат пользователю');
         }
 
         $pendingStatusId = BonusStatus::pendingId();
@@ -84,10 +84,10 @@ class PaymentService
         // Рассчитываем общую сумму
         $totalAmount = $this->calculatePaymentTotal($bonuses->all());
 
-        return DB::transaction(function () use ($agentId, $bonuses, $methodId, $referenceNumber, $totalAmount) {
+        return DB::transaction(function () use ($userId, $bonuses, $methodId, $referenceNumber, $totalAmount) {
             // Создаём выплату
             $payment = AgentPayment::create([
-                'agent_id' => $agentId,
+                'agent_id' => $userId,
                 'total_amount' => $totalAmount,
                 'payment_date' => now(),
                 'reference_number' => $referenceNumber,
@@ -156,14 +156,14 @@ class PaymentService
     }
 
     /**
-     * Получить доступные к выплате бонусы агента.
+     * Получить доступные к выплате бонусы пользователя.
      *
-     * @param int $agentId
+     * @param int $userId
      * @return \Illuminate\Database\Eloquent\Collection
      */
-    public function getAvailableBonusesForAgent(int $agentId)
+    public function getAvailableBonusesForAgent(int $userId)
     {
-        return AgentBonus::where('agent_id', $agentId)
+        return Bonus::where('user_id', $userId)
             ->where('status_id', BonusStatus::pendingId())
             ->with(['contract', 'order', 'status'])
             ->orderBy('accrued_at', 'desc')
