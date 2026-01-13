@@ -104,8 +104,10 @@ type Bonus {
 type AgentBonusStats {
     "Ожидание выплаты (начислено, но не доступно)"
     total_pending: Float!
-    "Доступно к выплате"
+    "Доступно к выплате (за вычетом запрошенных)"
     total_available: Float!
+    "Запрошено к выплате"
+    total_requested: Float!
     "Выплачено"
     total_paid: Float!
 }

@@ -469,9 +469,16 @@ class BonusService
             }
         }
 
+        // Получаем сумму запрошенных к выплате заявок (статус = 'requested')
+        $totalRequested = $this->getRequestedPaymentsAmount($userId);
+
+        // Вычитаем запрошенную сумму из доступного баланса
+        $adjustedAvailable = max(0, $totalAvailable - $totalRequested);
+
         return [
             'total_pending' => round($totalPending, 2),
-            'total_available' => round($totalAvailable, 2),
+            'total_available' => round($adjustedAvailable, 2),
+            'total_requested' => round($totalRequested, 2),
             'total_paid' => round($totalPaid, 2),
         ];
     }
@@ -741,5 +748,24 @@ class BonusService
         }
 
         return null;
+    }
+
+    /**
+     * Получить сумму запрошенных к выплате заявок пользователя.
+     *
+     * Учитывает только заявки со статусом 'requested'.
+     *
+     * @param int $userId
+     * @return float
+     */
+    public function getRequestedPaymentsAmount(int $userId): float
+    {
+        $requestedAmount = \App\Models\BonusPaymentRequest::where('agent_id', $userId)
+            ->whereHas('status', function ($query) {
+                $query->where('code', 'requested');
+            })
+            ->sum('amount');
+
+        return (float) $requestedAmount;
     }
 }
