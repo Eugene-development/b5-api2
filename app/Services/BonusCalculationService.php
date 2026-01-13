@@ -147,6 +147,7 @@ class BonusCalculationService
                 'curator_bonus' => $contract->curator_bonus ?? 0,
                 'is_active' => $contract->is_active,
                 'is_available' => $isAvailable,
+                'is_paid' => $agentBonus && $agentBonus->paid_at !== null,
             ];
 
             // Считаем бонусы
@@ -177,6 +178,7 @@ class BonusCalculationService
                 'curator_bonus' => $order->curator_bonus ?? 0,
                 'is_active' => $order->is_active,
                 'is_available' => $isAvailable,
+                'is_paid' => $agentBonus && $agentBonus->paid_at !== null,
             ];
 
             // Считаем бонусы
