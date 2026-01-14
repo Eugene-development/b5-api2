@@ -102,12 +102,12 @@ class BonusCalculationService
     {
         // Получаем все договоры проекта с их статусами и бонусами
         $contracts = Contract::where('project_id', $projectId)
-            ->with(['status', 'agentBonus', 'partnerPaymentStatus'])
+            ->with(['status', 'agentBonus', 'curatorBonus', 'partnerPaymentStatus'])
             ->get();
 
         // Получаем все закупки проекта с их статусами и бонусами
         $orders = Order::where('project_id', $projectId)
-            ->with(['status', 'agentBonus'])
+            ->with(['status', 'agentBonus', 'curatorBonus'])
             ->get();
 
         // Агрегируем бонусы
@@ -125,16 +125,22 @@ class BonusCalculationService
                 continue;
             }
 
+            // Получаем бонусы из таблицы bonuses
+            $agentBonus = $contract->agentBonus;
+            $curatorBonus = $contract->curatorBonus;
+
+            // Суммы бонусов из связанных записей в таблице bonuses
+            $agentBonusAmount = $agentBonus ? (float)$agentBonus->commission_amount : 0.0;
+            $curatorBonusAmount = $curatorBonus ? (float)$curatorBonus->commission_amount : 0.0;
+
             // Проверяем доступность бонуса к выплате
             // Для договоров: оба условия (is_contract_completed И is_partner_paid) должны быть true
             // И бонус ещё не выплачен (paid_at === null)
-            $agentBonus = $contract->agentBonus;
-            
             $isContractCompleted = $contract->status && $contract->status->slug === 'completed';
             $isPartnerPaid = $contract->partnerPaymentStatus && $contract->partnerPaymentStatus->code === 'paid';
             $isContractActive = $contract->is_active === true;
             $isNotPaid = $agentBonus && $agentBonus->paid_at === null;
-            
+
             $isAvailable = $isContractCompleted && $isPartnerPaid && $isContractActive && $isNotPaid;
 
             $contractsData[] = [
@@ -143,28 +149,34 @@ class BonusCalculationService
                 'contract_amount' => $contract->contract_amount,
                 'agent_percentage' => $contract->agent_percentage ?? 3.0,
                 'curator_percentage' => $contract->curator_percentage ?? 2.0,
-                'agent_bonus' => $contract->agent_bonus ?? 0,
-                'curator_bonus' => $contract->curator_bonus ?? 0,
+                'agent_bonus' => $agentBonusAmount,
+                'curator_bonus' => $curatorBonusAmount,
                 'is_active' => $contract->is_active,
                 'is_available' => $isAvailable,
                 'is_paid' => $agentBonus && $agentBonus->paid_at !== null,
             ];
 
             // Считаем бонусы
-            $totalAgentBonus += $contract->agent_bonus ?? 0;
-            $totalCuratorBonus += $contract->curator_bonus ?? 0;
+            $totalAgentBonus += $agentBonusAmount;
+            $totalCuratorBonus += $curatorBonusAmount;
         }
 
         $ordersData = [];
         foreach ($orders as $order) {
+            // Получаем бонусы из таблицы bonuses
+            $agentBonus = $order->agentBonus;
+            $curatorBonus = $order->curatorBonus;
+
+            // Суммы бонусов из связанных записей в таблице bonuses
+            $agentBonusAmount = $agentBonus ? (float)$agentBonus->commission_amount : 0.0;
+            $curatorBonusAmount = $curatorBonus ? (float)$curatorBonus->commission_amount : 0.0;
+
             // Проверяем доступность бонуса к выплате
             // Для заказов: статус = 'delivered' И заказ активен И бонус не выплачен
-            $agentBonus = $order->agentBonus;
-            
             $isOrderDelivered = $order->status && $order->status->slug === 'delivered';
             $isOrderActive = $order->is_active === true;
             $isNotPaid = $agentBonus && $agentBonus->paid_at === null;
-            
+
             $isAvailable = $isOrderDelivered && $isOrderActive && $isNotPaid;
 
             // Отправляем все заказы на фронтенд, независимо от статуса
@@ -174,28 +186,28 @@ class BonusCalculationService
                 'order_amount' => $order->order_amount,
                 'agent_percentage' => $order->agent_percentage ?? 5.0,
                 'curator_percentage' => $order->curator_percentage ?? 5.0,
-                'agent_bonus' => $order->agent_bonus ?? 0,
-                'curator_bonus' => $order->curator_bonus ?? 0,
+                'agent_bonus' => $agentBonusAmount,
+                'curator_bonus' => $curatorBonusAmount,
                 'is_active' => $order->is_active,
                 'is_available' => $isAvailable,
                 'is_paid' => $agentBonus && $agentBonus->paid_at !== null,
             ];
 
             // Считаем бонусы
-            $totalAgentBonus += $order->agent_bonus ?? 0;
-            $totalCuratorBonus += $order->curator_bonus ?? 0;
+            $totalAgentBonus += $agentBonusAmount;
+            $totalCuratorBonus += $curatorBonusAmount;
         }
 
         // Считаем сумму доступных к выплате бонусов из данных, которые мы уже рассчитали
         // Это обеспечивает консистентность с галочками is_available
         $totalAvailableBonus = 0.0;
-        
+
         foreach ($contractsData as $contractInfo) {
             if ($contractInfo['is_available']) {
                 $totalAvailableBonus += (float)($contractInfo['agent_bonus'] ?? 0);
             }
         }
-        
+
         foreach ($ordersData as $orderInfo) {
             if ($orderInfo['is_available']) {
                 $totalAvailableBonus += (float)($orderInfo['agent_bonus'] ?? 0);
