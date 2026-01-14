@@ -32,14 +32,21 @@ class BonusPaymentService
      * - Для заказов: заказ доставлен
      *
      * @param int $userId
+     * @param string|null $recipientType Тип получателя (agent, curator). Если null - все типы.
      * @return Collection<Bonus>
      */
-    public function getAvailableBonuses(int $userId): Collection
+    public function getAvailableBonuses(int $userId, ?string $recipientType = null): Collection
     {
-        return Bonus::where('user_id', $userId)
+        $query = Bonus::where('user_id', $userId)
             ->whereNull('paid_at')
-            ->where('commission_amount', '>', 0)
-            ->with(['contract.status', 'contract.partnerPaymentStatus', 'order.status'])
+            ->where('commission_amount', '>', 0);
+
+        // Фильтруем по типу получателя если указан
+        if ($recipientType !== null) {
+            $query->where('recipient_type', $recipientType);
+        }
+
+        return $query->with(['contract.status', 'contract.partnerPaymentStatus', 'order.status'])
             ->orderBy('accrued_at', 'asc')
             ->get()
             ->filter(function (Bonus $bonus) {
@@ -84,11 +91,12 @@ class BonusPaymentService
      * Рассчитать общую сумму доступных бонусов пользователя.
      *
      * @param int $userId
+     * @param string|null $recipientType Тип получателя (agent, curator). Если null - все типы.
      * @return float
      */
-    public function calculateAvailableBalance(int $userId): float
+    public function calculateAvailableBalance(int $userId, ?string $recipientType = null): float
     {
-        $availableBonuses = $this->getAvailableBonuses($userId);
+        $availableBonuses = $this->getAvailableBonuses($userId, $recipientType);
 
         return $availableBonuses->sum(function (Bonus $bonus) {
             return (float) $bonus->commission_amount;
@@ -104,14 +112,16 @@ class BonusPaymentService
      * @param BonusPaymentRequest $request
      * @param int $userId
      * @param float $amount
+     * @param string|null $recipientType Тип получателя (agent, curator). Если null - все типы.
      * @return array Массив связанных бонусов с информацией о покрытии
      */
     public function linkBonusesToPaymentRequest(
         BonusPaymentRequest $request,
         int $userId,
-        float $amount
+        float $amount,
+        ?string $recipientType = null
     ): array {
-        $availableBonuses = $this->getAvailableBonuses($userId);
+        $availableBonuses = $this->getAvailableBonuses($userId, $recipientType);
         $remainingAmount = $amount;
         $linkedBonuses = [];
 

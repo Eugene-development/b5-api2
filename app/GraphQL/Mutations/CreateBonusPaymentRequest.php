@@ -49,8 +49,11 @@ final readonly class CreateBonusPaymentRequest
             throw new Error('Сумма выплаты должна быть больше нуля');
         }
 
+        // Определяем тип запрашивающего для валидации баланса
+        $requesterType = $input['requester_type'] ?? BonusPaymentRequest::REQUESTER_AGENT;
+
         // Валидация суммы против доступного баланса (Property 7: Balance Validation)
-        $availableBalance = $this->bonusPaymentService->calculateAvailableBalance($user->id);
+        $availableBalance = $this->bonusPaymentService->calculateAvailableBalance($user->id, $requesterType);
         if ($amount > $availableBalance) {
             throw new Error(
                 "Сумма превышает доступный баланс. Доступно: " .
@@ -77,7 +80,7 @@ final readonly class CreateBonusPaymentRequest
         $request = DB::transaction(function () use ($user, $amount, $paymentMethod, $input, $requestedStatus) {
             // Определяем тип запрашивающего (по умолчанию agent)
             $requesterType = $input['requester_type'] ?? BonusPaymentRequest::REQUESTER_AGENT;
-            
+
             // Создаём заявку
             $request = BonusPaymentRequest::create([
                 'agent_id' => $user->id,
@@ -91,8 +94,8 @@ final readonly class CreateBonusPaymentRequest
                 'status_id' => $requestedStatus->id,
             ]);
 
-            // Связываем бонусы с заявкой по FIFO
-            $this->bonusPaymentService->linkBonusesToPaymentRequest($request, $user->id, $amount);
+            // Связываем бонусы с заявкой по FIFO (фильтруем по типу получателя)
+            $this->bonusPaymentService->linkBonusesToPaymentRequest($request, $user->id, $amount, $requesterType);
 
             return $request;
         });

@@ -118,6 +118,8 @@ type AdminBonusStats {
     total_pending: Float!
     "Доступно к выплате"
     total_available: Float!
+    "Запрошено к выплате"
+    total_requested: Float!
     "Выплачено"
     total_paid: Float!
     "Количество бонусов по договорам"

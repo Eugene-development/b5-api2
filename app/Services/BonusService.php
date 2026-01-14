@@ -753,18 +753,24 @@ class BonusService
     /**
      * Получить сумму запрошенных к выплате заявок пользователя.
      *
-     * Учитывает только заявки со статусом 'requested'.
+     * Учитывает только заявки со статусом 'requested' или 'approved' (не выплаченные).
      *
      * @param int $userId
+     * @param string|null $requesterType Тип запрашивающего (agent, curator)
      * @return float
      */
-    public function getRequestedPaymentsAmount(int $userId): float
+    public function getRequestedPaymentsAmount(int $userId, ?string $requesterType = null): float
     {
-        $requestedAmount = \App\Models\BonusPaymentRequest::where('agent_id', $userId)
-            ->whereHas('status', function ($query) {
-                $query->where('code', 'requested');
-            })
-            ->sum('amount');
+        $query = \App\Models\BonusPaymentRequest::where('agent_id', $userId)
+            ->whereHas('status', function ($q) {
+                $q->whereIn('code', ['requested', 'approved']);
+            });
+
+        if ($requesterType !== null) {
+            $query->where('requester_type', $requesterType);
+        }
+
+        $requestedAmount = $query->sum('amount');
 
         return (float) $requestedAmount;
     }

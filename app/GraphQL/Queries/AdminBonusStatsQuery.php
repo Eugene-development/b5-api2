@@ -6,6 +6,7 @@ namespace App\GraphQL\Queries;
 
 use App\Models\Bonus;
 use App\Models\BonusStatus;
+use App\Models\BonusPaymentRequest;
 
 final readonly class AdminBonusStatsQuery
 {
@@ -32,8 +33,9 @@ final readonly class AdminBonusStatsQuery
             $query->where('user_id', $userId);
         }
 
-        if (!empty($filters['recipient_type'])) {
-            $query->where('recipient_type', $filters['recipient_type']);
+        $recipientType = $filters['recipient_type'] ?? null;
+        if (!empty($recipientType)) {
+            $query->where('recipient_type', $recipientType);
         }
 
         if (!empty($filters['date_from'])) {
@@ -114,9 +116,28 @@ final readonly class AdminBonusStatsQuery
             }
         }
 
+        // Calculate requested amount (for specific user and recipient type)
+        $totalRequested = 0.0;
+        if (!empty($userId)) {
+            $requestedQuery = BonusPaymentRequest::where('agent_id', $userId)
+                ->whereHas('status', function ($q) {
+                    $q->whereIn('code', ['requested', 'approved']);
+                });
+
+            if (!empty($recipientType)) {
+                $requestedQuery->where('requester_type', $recipientType);
+            }
+
+            $totalRequested = (float) $requestedQuery->sum('amount');
+        }
+
+        // Adjust available amount by subtracting requested
+        $adjustedAvailable = max(0, $totalAvailable - $totalRequested);
+
         return [
             'total_pending' => round($totalPending, 2),
-            'total_available' => round($totalAvailable, 2),
+            'total_available' => round($adjustedAvailable, 2),
+            'total_requested' => round($totalRequested, 2),
             'total_paid' => round($totalPaid, 2),
             'contracts_count' => $contractsCount,
             'orders_count' => $ordersCount,
