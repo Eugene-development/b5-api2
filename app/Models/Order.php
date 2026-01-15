@@ -140,11 +140,21 @@ class Order extends Model
         'is_urgent' => 'boolean',
         'delivery_date' => 'date',
         'actual_delivery_date' => 'date',
-        'order_amount' => 'decimal:2',
         'agent_percentage' => 'decimal:2',
         'curator_percentage' => 'decimal:2',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
+    ];
+
+    /**
+     * The accessors to append to the model's array form.
+     *
+     * @var array
+     */
+    protected $appends = [
+        'order_amount',
+        'agent_bonus',
+        'curator_bonus',
     ];
 
     /**
@@ -228,5 +238,52 @@ class Order extends Model
     public function status(): BelongsTo
     {
         return $this->belongsTo(OrderStatus::class, 'status_id');
+    }
+
+    /**
+     * Get the agent bonus amount (accessor for GraphQL).
+     * Возвращает сумму бонуса агента из таблицы bonuses.
+     *
+     * @return float|null
+     */
+    public function getAgentBonusAttribute(): ?float
+    {
+        $bonus = $this->getRelationValue('agentBonus');
+        return $bonus ? (float) $bonus->commission_amount : null;
+    }
+
+    /**
+     * Get the curator bonus amount (accessor for GraphQL).
+     * Возвращает сумму бонуса куратора из таблицы bonuses.
+     *
+     * @return float|null
+     */
+    public function getCuratorBonusAttribute(): ?float
+    {
+        $bonus = $this->getRelationValue('curatorBonus');
+        return $bonus ? (float) $bonus->commission_amount : null;
+    }
+
+    /**
+     * Get the order amount (accessor for GraphQL).
+     * Если order_amount не задан, рассчитывает из суммы позиций.
+     *
+     * @return float|null
+     */
+    public function getOrderAmountAttribute(): ?float
+    {
+        // Если значение явно задано в БД, возвращаем его
+        $dbValue = $this->getRawOriginal('order_amount');
+        if ($dbValue !== null && (float) $dbValue > 0) {
+            return (float) $dbValue;
+        }
+
+        // Иначе рассчитываем из позиций
+        $positions = $this->positions;
+        if ($positions->isEmpty()) {
+            return null;
+        }
+
+        return (float) $positions->sum('total_price');
     }
 }
