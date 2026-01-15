@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Database\Eloquent\Relations\MorphToMany;
 
 class Order extends Model
 {
@@ -285,5 +286,13 @@ class Order extends Model
         }
 
         return (float) $positions->sum('total_price');
+    }
+
+    /**
+     * Get the comments for the order.
+     */
+    public function comments(): MorphToMany
+    {
+        return $this->morphToMany(Comment::class, 'commentable', 'commentables', 'commentable_id', 'comment_id');
     }
 }

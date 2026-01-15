@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Database\Eloquent\Relations\MorphToMany;
 
 class Contract extends Model
 {
@@ -228,5 +229,13 @@ class Contract extends Model
     public function status(): BelongsTo
     {
         return $this->belongsTo(ContractStatus::class, 'status_id');
+    }
+
+    /**
+     * Get the comments for the contract.
+     */
+    public function comments(): MorphToMany
+    {
+        return $this->morphToMany(Comment::class, 'commentable', 'commentables', 'commentable_id', 'comment_id');
     }
 }

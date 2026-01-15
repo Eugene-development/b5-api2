@@ -28,6 +28,8 @@ type Order {
     status_id: ID
     "Статус заказа"
     status: OrderStatus @belongsTo
+    "Комментарии к заказу"
+    comments: [Comment!] @field(resolver: "App\\GraphQL\\Resolvers\\OrderCommentsResolver")
     created_at: DateTime!
     updated_at: DateTime!
     company: Company! @belongsTo
@@ -186,4 +188,12 @@ extend type Mutation {
 
     "Delete an order position"
     deleteOrderPosition(id: ID! @whereKey): OrderPosition! @delete(model: "App\\Models\\OrderPosition")
+
+    "Add a comment to an order"
+    addOrderComment(order_id: ID!, value: String!, author_name: String): Comment!
+        @field(resolver: "App\\GraphQL\\Mutations\\AddOrderComment")
+
+    "Update an order comment"
+    updateOrderComment(id: ID!, value: String!): Comment!
+        @field(resolver: "App\\GraphQL\\Mutations\\UpdateOrderComment")
 }

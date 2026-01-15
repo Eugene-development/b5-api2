@@ -122,7 +122,7 @@ class BonusService
             'percentage' => $contract->curator_percentage,
             'status_id' => BonusStatus::pendingId(),
             'recipient_type' => Bonus::RECIPIENT_CURATOR,
-            'bonus_type' => null,
+            'bonus_type' => 'curator',
             'accrued_at' => now(),
             'available_at' => null,
             'paid_at' => null,

@@ -9,6 +9,8 @@ type Contract {
     status: ContractStatus @belongsTo
     partnerPaymentStatus: PartnerPaymentStatus @belongsTo
     contract_number: String
+    "Комментарии к договору"
+    comments: [Comment!] @field(resolver: "App\\GraphQL\\Resolvers\\ContractCommentsResolver")
     contract_date: Date!
     planned_completion_date: Date!
     actual_completion_date: Date
@@ -84,4 +86,12 @@ extend type Mutation {
     "Update contract status"
     updateContractStatus(contract_id: ID!, status_slug: String!): Contract!
         @field(resolver: "App\\GraphQL\\Mutations\\UpdateContractStatus")
+
+    "Add a comment to a contract"
+    addContractComment(contract_id: ID!, value: String!, author_name: String): Comment!
+        @field(resolver: "App\\GraphQL\\Mutations\\AddContractComment")
+
+    "Update a contract comment"
+    updateContractComment(id: ID!, value: String!): Comment!
+        @field(resolver: "App\\GraphQL\\Mutations\\UpdateContractComment")
 }
