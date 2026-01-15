@@ -206,7 +206,7 @@ class BonusService
             'percentage' => $order->curator_percentage,
             'status_id' => BonusStatus::pendingId(),
             'recipient_type' => Bonus::RECIPIENT_CURATOR,
-            'bonus_type' => null,
+            'bonus_type' => 'curator',
             'accrued_at' => now(),
             'available_at' => null,
             'paid_at' => null,
@@ -738,13 +738,14 @@ class BonusService
      */
     private function getCuratorIdFromProject(string $projectId): ?int
     {
-        // Ищем куратора в таблице projects (поле curator_id)
-        $project = DB::table('projects')
-            ->where('id', $projectId)
+        // Ищем куратора в таблице project_user с ролью 'curator'
+        $curatorRelation = DB::table('project_user')
+            ->where('project_id', $projectId)
+            ->where('role', 'curator')
             ->first();
 
-        if ($project && isset($project->curator_id)) {
-            return $project->curator_id;
+        if ($curatorRelation && isset($curatorRelation->user_id)) {
+            return $curatorRelation->user_id;
         }
 
         return null;
