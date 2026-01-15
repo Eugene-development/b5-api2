@@ -145,7 +145,7 @@ class PublicProjectController extends Controller
 
             return response()->json([
                 'success' => true,
-                'message' => 'Заявка успешно отправлена',
+                'message' => 'Проект отправлен в работу',
                 'project' => $project,
             ], 201);
 

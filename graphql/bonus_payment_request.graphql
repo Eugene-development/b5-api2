@@ -50,6 +50,16 @@ input CreateBonusPaymentRequestInput {
     comment: String
 }
 
+"Входные данные для обновления заявки на выплату"
+input UpdateBonusPaymentRequestInput {
+    amount: Float @rules(apply: ["numeric", "min:1"])
+    payment_method: String @rules(apply: ["in:card,sbp,other"])
+    card_number: String
+    phone_number: String
+    contact_info: String
+    comment: String
+}
+
 
 "Фильтры для заявок на выплату"
 input BonusPaymentRequestFilters {
@@ -87,4 +97,12 @@ extend type Mutation {
     "Обновить статус заявки на выплату (для админа)"
     updateBonusPaymentRequestStatus(request_id: ID!, status_code: String!): BonusPaymentRequest!
         @field(resolver: "App\\GraphQL\\Mutations\\UpdateBonusPaymentRequestStatus")
+
+    "Обновить заявку на выплату (для админа)"
+    updateBonusPaymentRequest(request_id: ID!, input: UpdateBonusPaymentRequestInput!): BonusPaymentRequest!
+        @field(resolver: "App\\GraphQL\\Mutations\\UpdateBonusPaymentRequest")
+
+    "Удалить заявку на выплату (для админа)"
+    deleteBonusPaymentRequest(request_id: ID!): Boolean!
+        @field(resolver: "App\\GraphQL\\Mutations\\DeleteBonusPaymentRequest")
 }

@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\MorphToMany;
 
 class Project extends Model
 {
@@ -188,6 +189,14 @@ class Project extends Model
     public function getRegionAttribute()
     {
         return $this->attributes['address'] ?? null;
+    }
+
+    /**
+     * Get the comments for the project.
+     */
+    public function comments(): MorphToMany
+    {
+        return $this->morphToMany(Comment::class, 'commentable', 'commentables', 'commentable_id', 'comment_id');
     }
 
     /**

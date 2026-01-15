@@ -44,6 +44,8 @@ type Project {
     contracts: [Contract!] @hasMany
     "Закупки проекта"
     orders: [Order!] @hasMany
+    "Комментарии к проекту"
+    comments: [Comment!] @field(resolver: "App\\GraphQL\\Resolvers\\ProjectCommentsResolver")
     region: String
     description: String
     is_active: Boolean
@@ -73,6 +75,19 @@ type ProjectPhone {
     value: String!
     contact_person: String
     is_primary: Boolean
+    created_at: DateTime!
+    updated_at: DateTime!
+}
+
+"Комментарий к сущности"
+type Comment {
+    id: ID!
+    value: String!
+    author_id: ID
+    author_name: String
+    is_active: Boolean!
+    is_approved: Boolean!
+    approved_at: DateTime
     created_at: DateTime!
     updated_at: DateTime!
 }
