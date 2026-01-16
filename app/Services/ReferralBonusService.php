@@ -127,18 +127,22 @@ class ReferralBonusService
             return null;
         }
 
+        // Получаем order_amount из атрибутов напрямую, минуя accessor
+        // Это важно для события created, когда позиции ещё не созданы
+        $orderAmount = $order->getAttributes()['order_amount'] ?? $order->getRawOriginal('order_amount') ?? null;
+
         // Проверяем условия создания бонуса
-        if (!$order->is_active || !$order->order_amount || $order->order_amount <= 0) {
+        if (!$order->is_active || !$orderAmount || (float)$orderAmount <= 0) {
             return null;
         }
 
-        $commissionAmount = $this->calculateReferralCommission((float) $order->order_amount);
+        $commissionAmount = $this->calculateReferralCommission((float) $orderAmount);
 
         Log::info('ReferralBonusService: Creating referral bonus for order', [
             'referrer_id' => $referrerId,
             'agent_id' => $agentId,
             'order_id' => $order->id,
-            'order_amount' => $order->order_amount,
+            'order_amount' => $orderAmount,
             'commission_amount' => $commissionAmount
         ]);
 

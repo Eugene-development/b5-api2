@@ -139,8 +139,13 @@ class BonusService
      */
     public function createBonusForOrder(Order $order): ?Bonus
     {
+        // Получаем order_amount из атрибутов напрямую, минуя accessor
+        // Это важно для события created, когда позиции ещё не созданы
+        $orderAmount = $order->getAttributes()['order_amount'] ?? $order->getRawOriginal('order_amount') ?? null;
+        
         // Проверяем условия создания бонуса
-        if (!$order->is_active || !$order->order_amount || $order->order_amount <= 0) {
+        // Используем значение из атрибутов, а не accessor
+        if (!$order->is_active || !$orderAmount || (float)$orderAmount <= 0) {
             return null;
         }
 
@@ -151,7 +156,7 @@ class BonusService
         }
 
         $agentCommission = $this->calculateCommission(
-            (float) $order->order_amount,
+            (float) $orderAmount,
             (float) $order->agent_percentage
         );
 
@@ -193,8 +198,11 @@ class BonusService
             return null;
         }
 
+        // Получаем order_amount из атрибутов напрямую, минуя accessor
+        $orderAmount = $order->getAttributes()['order_amount'] ?? $order->getRawOriginal('order_amount') ?? 0;
+
         $curatorCommission = $this->calculateCommission(
-            (float) $order->order_amount,
+            (float) $orderAmount,
             (float) $order->curator_percentage
         );
 
@@ -529,11 +537,15 @@ class BonusService
     /**
      * Обработать изменение статуса договора.
      *
-     * Бонус становится доступным к выплате когда выполнены ОБА условия:
-     * - Статус договора = 'completed' (Выполнен)
-     * - Статус оплаты партнёром = 'paid' (Оплачено)
+     * Логика статусов бонуса относительно статуса договора:
+     * - preparing (Обработка): бонусы НЕ отображаются (фильтруются в getAgentStats)
+     * - signed (Заключён): бонус = pending (Ожидание)
+     * - completed (Выполнен): бонус = pending, но если partner_paid=true → available
+     * - claim (Рекламация): бонус = pending (Ожидание)
+     * - rejected (Отказ): бонус = cancelled (Аннулирован)
+     * - terminated (Расторгнут): бонус = cancelled (Аннулирован)
      *
-     * Обновляет ВСЕ бонусы договора (агентский + кураторский + реферальный).
+     * При смене с отменяющего статуса на обычный — бонусы восстанавливаются.
      *
      * @param Contract $contract
      * @param string $newStatusSlug
@@ -541,14 +553,86 @@ class BonusService
      */
     public function handleContractStatusChange(Contract $contract, string $newStatusSlug): void
     {
-        // Получаем все бонусы договора
-        $bonuses = $contract->bonuses;
+        // Статусы, при которых бонусы аннулируются
+        $cancellingStatuses = ['rejected', 'terminated'];
+
+        // Если статус "Отказ" или "Расторгнут" — аннулируем все бонусы
+        if (in_array($newStatusSlug, $cancellingStatuses)) {
+            $this->cancelBonusesForContract($contract);
+            return;
+        }
+
+        // Для всех остальных статусов — восстанавливаем аннулированные бонусы
+        // и проверяем условия доступности
+        $this->restoreAndUpdateContractBonuses($contract);
+    }
+
+    /**
+     * Восстановить аннулированные бонусы и обновить их доступность.
+     *
+     * @param Contract $contract
+     * @return void
+     */
+    private function restoreAndUpdateContractBonuses(Contract $contract): void
+    {
+        $bonuses = $contract->bonuses()->whereNull('paid_at')->get();
+        $cancelledStatusId = BonusStatus::cancelledId();
+        $pendingStatusId = BonusStatus::pendingId();
 
         foreach ($bonuses as $bonus) {
-            // Проверяем оба условия для доступности бонуса
+            // Если бонус был аннулирован — восстанавливаем в pending
+            if ($cancelledStatusId && $bonus->status_id == $cancelledStatusId) {
+                $bonus->status_id = $pendingStatusId;
+                $bonus->available_at = null;
+                $bonus->save();
+
+                \Illuminate\Support\Facades\Log::info('BonusService: Restored cancelled bonus', [
+                    'bonus_id' => $bonus->id,
+                    'contract_id' => $contract->id,
+                ]);
+            }
+
+            // Проверяем условия для доступности бонуса
             $this->checkAndUpdateContractBonusAvailability($contract, $bonus);
         }
     }
+
+    /**
+     * Аннулировать все бонусы договора.
+     *
+     * Аннулируются только невыплаченные бонусы (без paid_at).
+     *
+     * @param Contract $contract
+     * @return int Количество аннулированных бонусов
+     */
+    public function cancelBonusesForContract(Contract $contract): int
+    {
+        $cancelledCount = 0;
+        $cancelledStatusId = BonusStatus::cancelledId();
+
+        if (!$cancelledStatusId) {
+            \Illuminate\Support\Facades\Log::error('BonusService: cancelled status not found');
+            return 0;
+        }
+
+        $bonuses = $contract->bonuses()->whereNull('paid_at')->get();
+
+        foreach ($bonuses as $bonus) {
+            $bonus->status_id = $cancelledStatusId;
+            $bonus->available_at = null; // Сбрасываем доступность
+            $bonus->save();
+            $cancelledCount++;
+        }
+
+        \Illuminate\Support\Facades\Log::info('BonusService: Cancelled bonuses for contract', [
+            'contract_id' => $contract->id,
+            'cancelled_count' => $cancelledCount,
+        ]);
+
+        return $cancelledCount;
+    }
+
+
 
     /**
      * Проверить и обновить доступность бонуса для договора.
@@ -626,6 +710,8 @@ class BonusService
      * - Статус заказа = 'delivered' (Доставлен)
      * - Заказ активен (is_active = true)
      *
+     * При статусе 'returned' (Возврат) — бонусы аннулируются.
+     *
      * Для заказов НЕ требуется проверка оплаты партнёром,
      * так как компания сама организует продажу заказов.
      *
@@ -637,30 +723,97 @@ class BonusService
      */
     public function handleOrderStatusChange(Order $order, string $newStatusSlug): void
     {
-        // Получаем все бонусы заказа
-        $bonuses = $order->bonuses;
+        // Статусы, при которых бонусы аннулируются
+        $cancellingStatuses = ['returned'];
+
+        // Если статус "Возврат" — аннулируем все бонусы
+        if (in_array($newStatusSlug, $cancellingStatuses)) {
+            $this->cancelBonusesForOrder($order);
+            return;
+        }
+
+        // Для остальных статусов — восстанавливаем и обновляем
+        $this->restoreAndUpdateOrderBonuses($order, $newStatusSlug);
+    }
+
+    /**
+     * Восстановить аннулированные бонусы заказа и обновить их доступность.
+     *
+     * @param Order $order
+     * @param string $statusSlug
+     * @return void
+     */
+    private function restoreAndUpdateOrderBonuses(Order $order, string $statusSlug): void
+    {
+        $bonuses = $order->bonuses()->whereNull('paid_at')->get();
+        $cancelledStatusId = BonusStatus::cancelledId();
+        $pendingStatusId = BonusStatus::pendingId();
 
         foreach ($bonuses as $bonus) {
-            // Не трогаем уже оплаченные бонусы
-            if ($bonus->paid_at !== null) {
-                continue;
+            // Если бонус был аннулирован — восстанавливаем в pending
+            if ($cancelledStatusId && $bonus->status_id == $cancelledStatusId) {
+                $bonus->status_id = $pendingStatusId;
+                $bonus->available_at = null;
+                $bonus->save();
+
+                \Illuminate\Support\Facades\Log::info('BonusService: Restored cancelled order bonus', [
+                    'bonus_id' => $bonus->id,
+                    'order_id' => $order->id,
+                ]);
             }
 
-            // Если заказ перешёл в статус "Доставлен"
-            if ($newStatusSlug === 'delivered') {
+            // Если заказ перешёл в статус "Доставлен" — делаем бонус доступным
+            if ($statusSlug === 'delivered') {
                 $isOrderActive = $order->is_active === true;
 
                 if ($isOrderActive) {
                     $this->markBonusAsAvailable($bonus);
                 }
             } else {
-                // Если заказ перешёл из "Доставлен" в другой статус - очищаем available_at
+                // Для статуса "Сформирован" — бонус в ожидании
                 if ($bonus->available_at !== null) {
                     $this->revertBonusToAccrued($bonus);
                 }
             }
         }
     }
+
+    /**
+     * Аннулировать все бонусы заказа.
+     *
+     * Аннулируются только невыплаченные бонусы (без paid_at).
+     *
+     * @param Order $order
+     * @return int Количество аннулированных бонусов
+     */
+    public function cancelBonusesForOrder(Order $order): int
+    {
+        $cancelledCount = 0;
+        $cancelledStatusId = BonusStatus::cancelledId();
+
+        if (!$cancelledStatusId) {
+            \Illuminate\Support\Facades\Log::error('BonusService: cancelled status not found');
+            return 0;
+        }
+
+        $bonuses = $order->bonuses()->whereNull('paid_at')->get();
+
+        foreach ($bonuses as $bonus) {
+            $bonus->status_id = $cancelledStatusId;
+            $bonus->available_at = null; // Сбрасываем доступность
+            $bonus->save();
+            $cancelledCount++;
+        }
+
+        \Illuminate\Support\Facades\Log::info('BonusService: Cancelled bonuses for order', [
+            'order_id' => $order->id,
+            'cancelled_count' => $cancelledCount,
+        ]);
+
+        return $cancelledCount;
+    }
+
+
 
     /**
      * Обработать изменение is_active для заказа.
@@ -775,4 +928,154 @@ class BonusService
 
         return (float) $requestedAmount;
     }
+
+    /**
+     * Аннулировать все бонусы проекта при переходе в статус "Отказ".
+     *
+     * Аннулируются только невыплаченные бонусы (без paid_at).
+     * Бонусы всех договоров и заказов проекта получают статус 'cancelled'.
+     *
+     * @param string $projectId ID проекта
+     * @return int Количество аннулированных бонусов
+     */
+    public function cancelBonusesForProject(string $projectId): int
+    {
+        $cancelledCount = 0;
+        $cancelledStatusId = BonusStatus::cancelledId();
+
+        if (!$cancelledStatusId) {
+            \Illuminate\Support\Facades\Log::error('BonusService: cancelled status not found');
+            return 0;
+        }
+
+        // Получаем все договоры проекта
+        $contractIds = DB::table('contracts')
+            ->where('project_id', $projectId)
+            ->pluck('id')
+            ->toArray();
+
+        // Получаем все заказы проекта
+        $orderIds = DB::table('orders')
+            ->where('project_id', $projectId)
+            ->pluck('id')
+            ->toArray();
+
+        // Аннулируем все бонусы договоров (которые ещё не выплачены)
+        if (!empty($contractIds)) {
+            $contractBonuses = Bonus::whereIn('contract_id', $contractIds)
+                ->whereNull('paid_at')
+                ->get();
+
+            foreach ($contractBonuses as $bonus) {
+                $bonus->status_id = $cancelledStatusId;
+                $bonus->save();
+                $cancelledCount++;
+            }
+        }
+
+        // Аннулируем все бонусы заказов (которые ещё не выплачены)
+        if (!empty($orderIds)) {
+            $orderBonuses = Bonus::whereIn('order_id', $orderIds)
+                ->whereNull('paid_at')
+                ->get();
+
+            foreach ($orderBonuses as $bonus) {
+                $bonus->status_id = $cancelledStatusId;
+                $bonus->save();
+                $cancelledCount++;
+            }
+        }
+
+        \Illuminate\Support\Facades\Log::info('BonusService: Cancelled bonuses for project', [
+            'project_id' => $projectId,
+            'cancelled_count' => $cancelledCount,
+        ]);
+
+        return $cancelledCount;
+    }
+
+    /**
+     * Восстановить аннулированные бонусы проекта.
+     *
+     * Восстанавливает бонусы в статус pending и пересчитывает их доступность
+     * на основе текущих статусов договоров и заказов.
+     *
+     * @param string $projectId ID проекта
+     * @return int Количество восстановленных бонусов
+     */
+    public function restoreBonusesForProject(string $projectId): int
+    {
+        $restoredCount = 0;
+        $cancelledStatusId = BonusStatus::cancelledId();
+        $pendingStatusId = BonusStatus::pendingId();
+
+        if (!$cancelledStatusId || !$pendingStatusId) {
+            \Illuminate\Support\Facades\Log::error('BonusService: status IDs not found');
+            return 0;
+        }
+
+        // Получаем все договоры проекта
+        $contracts = Contract::where('project_id', $projectId)->get();
+
+        // Получаем все заказы проекта
+        $orders = Order::where('project_id', $projectId)->get();
+
+        // Восстанавливаем бонусы договоров
+        foreach ($contracts as $contract) {
+            // Пропускаем договоры с отменяющими статусами
+            $contractStatus = $contract->status;
+            if ($contractStatus && in_array($contractStatus->slug, ['rejected', 'terminated'])) {
+                continue;
+            }
+
+            $bonuses = $contract->bonuses()
+                ->whereNull('paid_at')
+                ->where('status_id', $cancelledStatusId)
+                ->get();
+
+            foreach ($bonuses as $bonus) {
+                $bonus->status_id = $pendingStatusId;
+                $bonus->available_at = null;
+                $bonus->save();
+                $restoredCount++;
+
+                // Проверяем условия доступности
+                $this->checkAndUpdateContractBonusAvailability($contract, $bonus);
+            }
+        }
+
+        // Восстанавливаем бонусы заказов
+        foreach ($orders as $order) {
+            // Пропускаем заказы с отменяющими статусами
+            $orderStatus = $order->status;
+            if ($orderStatus && $orderStatus->slug === 'returned') {
+                continue;
+            }
+
+            $bonuses = $order->bonuses()
+                ->whereNull('paid_at')
+                ->where('status_id', $cancelledStatusId)
+                ->get();
+
+            foreach ($bonuses as $bonus) {
+                $bonus->status_id = $pendingStatusId;
+                $bonus->available_at = null;
+                $bonus->save();
+                $restoredCount++;
+
+                // Проверяем условия доступности для заказа
+                if ($orderStatus && $orderStatus->slug === 'delivered' && $order->is_active) {
+                    $this->markBonusAsAvailable($bonus);
+                }
+            }
+        }
+
+        \Illuminate\Support\Facades\Log::info('BonusService: Restored bonuses for project', [
+            'project_id' => $projectId,
+            'restored_count' => $restoredCount,
+        ]);
+
+        return $restoredCount;
+    }
 }
+

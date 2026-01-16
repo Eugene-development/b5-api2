@@ -117,8 +117,16 @@ final class UpdateProject
             return;
         }
 
+        // Get the old status slug
+        $oldStatusSlug = null;
+        if ($oldStatusId) {
+            $oldStatus = ProjectStatus::find($oldStatusId);
+            $oldStatusSlug = $oldStatus?->slug;
+        }
+
         Log::info('UpdateProject: Handling status change', [
             'project_id' => $project->id,
+            'old_status_slug' => $oldStatusSlug,
             'new_status_slug' => $newStatus->slug,
         ]);
 
@@ -126,7 +134,51 @@ final class UpdateProject
         if ($newStatus->slug === 'curator-processing') {
             $this->assignCurator($project);
         }
+
+        // Статус, при котором бонусы аннулируются
+        $cancellingStatus = 'client-refused';
+
+        // If changing to "Отказ" (client-refused), cancel all bonuses
+        if ($newStatus->slug === $cancellingStatus) {
+            $this->cancelProjectBonuses($project);
+            return;
+        }
+
+        // If changing FROM "Отказ" to another status, restore bonuses
+        if ($oldStatusSlug === $cancellingStatus && $newStatus->slug !== $cancellingStatus) {
+            $this->restoreProjectBonuses($project);
+        }
     }
+
+    /**
+     * Cancel all unpaid bonuses for the project
+     */
+    private function cancelProjectBonuses(Project $project): void
+    {
+        $bonusService = app(\App\Services\BonusService::class);
+        $cancelledCount = $bonusService->cancelBonusesForProject($project->id);
+
+        Log::info('UpdateProject: Cancelled project bonuses', [
+            'project_id' => $project->id,
+            'cancelled_count' => $cancelledCount,
+        ]);
+    }
+
+    /**
+     * Restore cancelled bonuses for the project
+     */
+    private function restoreProjectBonuses(Project $project): void
+    {
+        $bonusService = app(\App\Services\BonusService::class);
+        $restoredCount = $bonusService->restoreBonusesForProject($project->id);
+
+        Log::info('UpdateProject: Restored project bonuses', [
+            'project_id' => $project->id,
+            'restored_count' => $restoredCount,
+        ]);
+    }
+
+
 
     /**
      * Assign current user as curator to the project

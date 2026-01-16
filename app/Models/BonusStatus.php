@@ -78,4 +78,12 @@ class BonusStatus extends Model
         // Если не найден, используем новый статус 'pending'
         return $id ?? static::pendingId();
     }
+
+    /**
+     * Получить ID статуса "Аннулирован".
+     */
+    public static function cancelledId(): int
+    {
+        return static::where('code', 'cancelled')->value('id');
+    }
 }
