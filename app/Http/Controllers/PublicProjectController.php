@@ -89,19 +89,21 @@ class PublicProjectController extends Controller
             // Get default project status
             $defaultStatus = ProjectStatus::getDefault();
 
-            // Generate unique project value (4 letters + 4 digits)
+            // Generate unique project number (4 letters + 4 digits)
             do {
                 $letters = '';
                 for ($i = 0; $i < 4; $i++) {
                     $letters .= chr(rand(65, 90)); // A-Z
                 }
                 $digits = str_pad(rand(0, 9999), 4, '0', STR_PAD_LEFT);
-                $projectValue = 'PRO-' . $letters . '-' . $digits;
-            } while (Project::where('value', $projectValue)->exists());
+                $projectNumber = 'PRO-' . $letters . '-' . $digits;
+            } while (Project::where('project_number', $projectNumber)->exists());
 
-            // Create project with generated project value, client_id and agent ID
+            // Create project with generated project_number, client_id and agent ID
+            // value is left null for user to fill in a custom name later
             $project = Project::create([
-                'value' => $projectValue,
+                'project_number' => $projectNumber,
+                'value' => null,
                 'user_id' => $agent->id,
                 'client_id' => $client->id,
                 'status_id' => $defaultStatus?->id,

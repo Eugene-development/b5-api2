@@ -166,7 +166,7 @@ type ProjectUser {
 
 extend type Mutation {
     "Create a new project"
-    createProject(input: CreateProjectInput! @spread): Project!
+    createProject(input: CreateProjectInput! @spread): Project! @field(resolver: "App\\GraphQL\\Mutations\\CreateProject")
 
     "Update an existing project"
     updateProject(input: UpdateProjectInput! @spread): Project! @field(resolver: "App\\GraphQL\\Mutations\\UpdateProject")

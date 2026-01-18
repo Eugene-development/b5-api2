@@ -104,7 +104,7 @@ final readonly class CreateOrder
 
             // Create the order (order_number will be auto-generated if not provided)
             $order = Order::create([
-                'value' => $input['value'],
+                'value' => $input['value'] ?? null,
                 'company_id' => $input['company_id'],
                 'project_id' => $input['project_id'],
                 'order_number' => $input['order_number'] ?? null,
