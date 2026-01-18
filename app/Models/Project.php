@@ -32,6 +32,7 @@ class Project extends Model
 
     protected $fillable = [
         'value',
+        'project_number',
         'description',
         'is_active',
         'is_incognito',

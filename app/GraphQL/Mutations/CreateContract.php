@@ -25,11 +25,14 @@ final readonly class CreateContract
             // Get default contract status
             $defaultStatus = ContractStatus::getDefault();
 
-            // Создаём договор (contract_number генерируется автоматически, если не указан)
+            // Создаём договор
+            // contract_number генерируется автоматически системой в модели Contract
+            // value содержит номер договора от фабрики (опционально, вводится пользователем)
             $contract = Contract::create([
                 'project_id' => $input['project_id'],
                 'company_id' => $input['company_id'],
-                'contract_number' => $input['contract_number'] ?? null, // Если null, будет сгенерирован автоматически
+                'value' => $input['value'] ?? null, // Номер договора от фабрики (опционально)
+                // contract_number генерируется автоматически в модели Contract (событие creating)
                 'contract_date' => $input['contract_date'],
                 'planned_completion_date' => $input['planned_completion_date'],
                 'actual_completion_date' => $input['actual_completion_date'] ?? null,

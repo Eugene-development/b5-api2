@@ -8,7 +8,10 @@ type Contract {
     company: Company @belongsTo
     status: ContractStatus @belongsTo
     partnerPaymentStatus: PartnerPaymentStatus @belongsTo
+    "Номер договора (присваивается системой автоматически)"
     contract_number: String
+    "Номер договора от фабрики (опциональный, вводится пользователем)"
+    value: String
     "Комментарии к договору"
     comments: [Comment!] @field(resolver: "App\\GraphQL\\Resolvers\\ContractCommentsResolver")
     contract_date: Date!
@@ -23,6 +26,7 @@ type Contract {
     curator_bonus: Float
     partner_payment_date: Date
     is_active: Boolean!
+    is_urgent: Boolean!
     created_at: DateTime!
     updated_at: DateTime!
 }
@@ -30,7 +34,8 @@ type Contract {
 input CreateContractInput {
     project_id: ID! @rules(apply: ["required", "exists:projects,id"])
     company_id: ID! @rules(apply: ["required", "exists:companies,id"])
-    contract_number: String @rules(apply: ["nullable", "string", "max:255", "unique:contracts,contract_number"])
+    "Номер договора от фабрики (опциональный)"
+    value: String @rules(apply: ["nullable", "string", "max:255"])
     contract_date: Date! @rules(apply: ["required", "date"])
     planned_completion_date: Date! @rules(apply: ["required", "date", "after_or_equal:contract_date"])
     actual_completion_date: Date @rules(apply: ["nullable", "date"])
@@ -38,13 +43,15 @@ input CreateContractInput {
     agent_percentage: Float! @rules(apply: ["required", "numeric", "min:0", "max:100"])
     curator_percentage: Float! @rules(apply: ["required", "numeric", "min:0", "max:100"])
     is_active: Boolean = true
+    is_urgent: Boolean = false
 }
 
 input UpdateContractInput {
     id: ID! @rules(apply: ["required", "exists:contracts,id"])
     project_id: ID @rules(apply: ["sometimes", "exists:projects,id"])
     company_id: ID @rules(apply: ["sometimes", "exists:companies,id"])
-    contract_number: String @rules(apply: ["nullable", "string", "max:255"])
+    "Номер договора от фабрики (опциональный)"
+    value: String @rules(apply: ["nullable", "string", "max:255"])
     contract_date: Date @rules(apply: ["sometimes", "date"])
     planned_completion_date: Date @rules(apply: ["sometimes", "date"])
     actual_completion_date: Date @rules(apply: ["nullable", "date"])
@@ -52,6 +59,7 @@ input UpdateContractInput {
     agent_percentage: Float @rules(apply: ["sometimes", "numeric", "min:0", "max:100"])
     curator_percentage: Float @rules(apply: ["sometimes", "numeric", "min:0", "max:100"])
     is_active: Boolean
+    is_urgent: Boolean
 }
 
 extend type Query {

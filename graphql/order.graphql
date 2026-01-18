@@ -1,8 +1,10 @@
 type Order {
     id: ID!
-    value: String!
+    "Номер заказа от поставщика (опциональный, вводится пользователем)"
+    value: String
     company_id: ID!
     project_id: ID!
+    "Номер заказа (присваивается системой автоматически)"
     order_number: String!
     delivery_date: Date
     actual_delivery_date: Date
@@ -56,7 +58,8 @@ type OrderPosition {
 }
 
 input CreateOrderInput {
-    value: String!
+    "Номер заказа от поставщика (опциональный)"
+    value: String
     company_id: ID!
     project_id: ID!
     order_number: String
@@ -87,6 +90,7 @@ input CreateOrderPositionInput {
 
 input UpdateOrderInput {
     id: ID!
+    "Номер заказа от поставщика (опциональный)"
     value: String
     company_id: ID
     project_id: ID

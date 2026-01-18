@@ -211,10 +211,21 @@ class ReferralBonusService
      */
     public function getReferralStats(int $referrerId): array
     {
-        $bonuses = Bonus::where('user_id', $referrerId)
+        $query = Bonus::where('user_id', $referrerId)
             ->where('recipient_type', Bonus::RECIPIENT_REFERRER)
-            ->with(['contract.status', 'contract.partnerPaymentStatus', 'order.status'])
-            ->get();
+            ->with(['contract.status', 'contract.partnerPaymentStatus', 'order.status']);
+
+        // Фильтруем бонусы: исключаем неактивные договоры и заказы
+        $query->where(function ($q) {
+            $q->whereHas('contract', function ($contractQuery) {
+                $contractQuery->where('is_active', true);
+            })
+            ->orWhereHas('order', function ($orderQuery) {
+                $orderQuery->where('is_active', true);
+            });
+        });
+
+        $bonuses = $query->get();
 
         $totalPending = 0.0;
         $totalAvailable = 0.0;
@@ -237,16 +248,14 @@ class ReferralBonusService
                 $contract = $bonus->contract;
                 $isContractCompleted = $contract->status && $contract->status->slug === 'completed';
                 $isPartnerPaid = $contract->partnerPaymentStatus && $contract->partnerPaymentStatus->code === 'paid';
-                $isContractActive = $contract->is_active === true;
 
-                $isAvailable = $isContractCompleted && $isPartnerPaid && $isContractActive;
+                $isAvailable = $isContractCompleted && $isPartnerPaid;
             } elseif ($bonus->order_id && $bonus->order) {
                 // Для заказов: проверяем статус доставки
                 $order = $bonus->order;
                 $isOrderDelivered = $order->status && $order->status->slug === 'delivered';
-                $isOrderActive = $order->is_active === true;
 
-                $isAvailable = $isOrderDelivered && $isOrderActive;
+                $isAvailable = $isOrderDelivered;
             }
 
             if ($isAvailable) {
@@ -287,9 +296,18 @@ class ReferralBonusService
         $stats = [];
 
         foreach ($referrals as $referral) {
+            // Считаем сумму бонусов только от активных договоров и заказов
             $bonusSum = Bonus::where('user_id', $referrerId)
                 ->where('recipient_type', Bonus::RECIPIENT_REFERRER)
                 ->where('referral_user_id', $referral->id)
+                ->where(function ($q) {
+                    $q->whereHas('contract', function ($contractQuery) {
+                        $contractQuery->where('is_active', true);
+                    })
+                    ->orWhereHas('order', function ($orderQuery) {
+                        $orderQuery->where('is_active', true);
+                    });
+                })
                 ->sum('commission_amount');
 
             $isActive = $this->isReferralProgramActive($referral->id);

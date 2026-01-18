@@ -251,15 +251,19 @@ class BonusService
      */
     public function updateBonusesForOrder(Order $order): void
     {
+        // Явно загружаем отношения для избежания конфликта с accessor'ами
+        // (accessor agent_bonus возвращает float, а нам нужна модель Bonus)
+        $order->load(['agentBonus', 'curatorBonus']);
+        
         // Обновляем агентский бонус
-        $agentBonus = $order->agentBonus;
-        if ($agentBonus) {
+        $agentBonus = $order->getRelation('agentBonus');
+        if ($agentBonus instanceof Bonus) {
             $this->recalculateBonus($agentBonus);
         }
 
         // Обновляем кураторский бонус
-        $curatorBonus = $order->curatorBonus;
-        if ($curatorBonus) {
+        $curatorBonus = $order->getRelation('curatorBonus');
+        if ($curatorBonus instanceof Bonus) {
             $this->recalculateCuratorBonusForOrder($curatorBonus, $order);
         }
     }
@@ -390,17 +394,22 @@ class BonusService
         $query = Bonus::where('user_id', $userId)
             ->with(['contract.status', 'contract.partnerPaymentStatus', 'order.status']);
 
-        // Фильтруем бонусы: показываем только те, где договор в статусе "Заключён" или далее
-        // (т.е. исключаем договоры в статусе "Обработка" / preparing)
+        // Фильтруем бонусы: исключаем неактивные договоры и заказы
+        // Также исключаем договоры в статусе "Обработка" (preparing)
         $query->where(function ($q) {
             $q->whereHas('contract', function ($contractQuery) {
-                $contractQuery->whereHas('status', function ($statusQuery) {
-                    // Исключаем статус "Обработка" (preparing)
-                    $statusQuery->where('slug', '!=', 'preparing');
-                });
+                $contractQuery
+                    // Только активные договоры
+                    ->where('is_active', true)
+                    ->whereHas('status', function ($statusQuery) {
+                        // Исключаем статус "Обработка" (preparing)
+                        $statusQuery->where('slug', '!=', 'preparing');
+                    });
             })
-            // Или это бонус от заказа (не от договора)
-            ->orWhereNotNull('order_id');
+            // Или это бонус от активного заказа
+            ->orWhereHas('order', function ($orderQuery) {
+                $orderQuery->where('is_active', true);
+            });
         });
 
         // Применяем фильтры если указаны

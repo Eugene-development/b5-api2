@@ -29,10 +29,11 @@ final readonly class UpdateContract
             $previousIsActive = $contract->is_active;
 
             // Обновляем поля договора
+            // Примечание: contract_number НЕ обновляется, он присваивается системой только при создании
             $contract->fill(array_filter([
                 'project_id' => $input['project_id'] ?? null,
                 'company_id' => $input['company_id'] ?? null,
-                'contract_number' => $input['contract_number'] ?? null,
+                'value' => $input['value'] ?? null, // Номер договора от фабрики
                 'contract_date' => $input['contract_date'] ?? null,
                 'planned_completion_date' => $input['planned_completion_date'] ?? null,
                 'actual_completion_date' => $input['actual_completion_date'] ?? null,
@@ -40,6 +41,7 @@ final readonly class UpdateContract
                 'agent_percentage' => $input['agent_percentage'] ?? null,
                 'curator_percentage' => $input['curator_percentage'] ?? null,
                 'is_active' => $input['is_active'] ?? null,
+                'is_urgent' => $input['is_urgent'] ?? null,
             ], fn($value) => $value !== null));
 
             $contract->save();

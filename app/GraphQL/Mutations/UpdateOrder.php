@@ -48,9 +48,13 @@ final readonly class UpdateOrder
             // Пересчитываем бонус агента
             $bonusService = app(BonusService::class);
             
+            // Явно загружаем отношение для избежания конфликта с accessor'ом agent_bonus (float)
+            $order->load('agentBonus');
+            $agentBonus = $order->getRelation('agentBonus');
+            
             // Если бонус существует - пересчитываем
-            if ($order->agentBonus) {
-                $bonusService->recalculateBonus($order->agentBonus);
+            if ($agentBonus instanceof \App\Models\Bonus) {
+                $bonusService->recalculateBonus($agentBonus);
 
                 // Если изменился is_active, обрабатываем изменение статуса бонуса
                 if (isset($input['is_active']) && $previousIsActive !== $order->is_active) {
@@ -72,6 +76,7 @@ final readonly class UpdateOrder
                     }
                 }
             }
+
 
             return $order->load(['project', 'company', 'status', 'partnerPaymentStatus']);
         });

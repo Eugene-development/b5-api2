@@ -24,6 +24,7 @@ class Contract extends Model
         'agent_percentage' => 3.00,
         'curator_percentage' => 2.00,
         'is_active' => true,
+        'is_urgent' => false,
     ];
 
     /**
@@ -128,6 +129,7 @@ class Contract extends Model
         'project_id',
         'company_id',
         'contract_number',
+        'value', // Номер договора от фабрики (опциональный)
         'contract_date',
         'planned_completion_date',
         'actual_completion_date',
@@ -136,6 +138,7 @@ class Contract extends Model
         'curator_percentage',
         'partner_payment_date',
         'is_active',
+        'is_urgent',
         'status_id',
     ];
 
@@ -152,6 +155,7 @@ class Contract extends Model
         'agent_percentage' => 'decimal:2',
         'curator_percentage' => 'decimal:2',
         'is_active' => 'boolean',
+        'is_urgent' => 'boolean',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
     ];

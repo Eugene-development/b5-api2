@@ -26,18 +26,22 @@ final readonly class AgentBonusesQuery
         $query = Bonus::where('user_id', $user->id)
             ->with(['status', 'contract', 'contract.status', 'contract.partnerPaymentStatus', 'order', 'referralUser']);
 
-        // Фильтруем бонусы: показываем только те, где договор в статусе "Заключён" или далее
-        // (т.е. исключаем договоры в статусе "Обработка" / preparing)
-        // Для реферальных бонусов и бонусов от заказов — показываем всегда
+        // Фильтруем бонусы: исключаем неактивные договоры и заказы
+        // Также исключаем договоры в статусе "Обработка" (preparing)
         $query->where(function ($q) {
             $q->whereHas('contract', function ($contractQuery) {
-                $contractQuery->whereHas('status', function ($statusQuery) {
-                    // Исключаем статус "Обработка" (preparing)
-                    $statusQuery->where('slug', '!=', 'preparing');
-                });
+                $contractQuery
+                    // Только активные договоры
+                    ->where('is_active', true)
+                    ->whereHas('status', function ($statusQuery) {
+                        // Исключаем статус "Обработка" (preparing)
+                        $statusQuery->where('slug', '!=', 'preparing');
+                    });
             })
-            // Или это бонус от заказа (не от договора)
-            ->orWhereNotNull('order_id');
+            // Или это бонус от активного заказа
+            ->orWhereHas('order', function ($orderQuery) {
+                $orderQuery->where('is_active', true);
+            });
         });
 
         // Применяем фильтры

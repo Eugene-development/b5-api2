@@ -119,6 +119,11 @@ class BonusCalculationService
 
         $contractsData = [];
         foreach ($contracts as $contract) {
+            // Фильтруем: пропускаем неактивные договоры — они не должны отображаться в ЛК агента
+            if ($contract->is_active !== true) {
+                continue;
+            }
+
             // Фильтруем: отправляем на фронтенд только договоры со статусом "Заключён" или "Выполнен"
             $statusSlug = $contract->status?->slug;
             if (!in_array($statusSlug, $allowedContractStatuses)) {
@@ -138,10 +143,9 @@ class BonusCalculationService
             // И бонус ещё не выплачен (paid_at === null)
             $isContractCompleted = $contract->status && $contract->status->slug === 'completed';
             $isPartnerPaid = $contract->partnerPaymentStatus && $contract->partnerPaymentStatus->code === 'paid';
-            $isContractActive = $contract->is_active === true;
             $isNotPaid = $agentBonus && $agentBonus->paid_at === null;
 
-            $isAvailable = $isContractCompleted && $isPartnerPaid && $isContractActive && $isNotPaid;
+            $isAvailable = $isContractCompleted && $isPartnerPaid && $isNotPaid;
 
             $contractsData[] = [
                 'id' => $contract->id,
@@ -163,6 +167,11 @@ class BonusCalculationService
 
         $ordersData = [];
         foreach ($orders as $order) {
+            // Фильтруем: пропускаем неактивные заказы — они не должны отображаться в ЛК агента
+            if ($order->is_active !== true) {
+                continue;
+            }
+
             // Получаем бонусы из таблицы bonuses
             $agentBonus = $order->agentBonus;
             $curatorBonus = $order->curatorBonus;
@@ -172,14 +181,14 @@ class BonusCalculationService
             $curatorBonusAmount = $curatorBonus ? (float)$curatorBonus->commission_amount : 0.0;
 
             // Проверяем доступность бонуса к выплате
-            // Для заказов: статус = 'delivered' И заказ активен И бонус не выплачен
+            // Для заказов: статус = 'delivered' И бонус не выплачен
+            // (is_active уже проверен выше)
             $isOrderDelivered = $order->status && $order->status->slug === 'delivered';
-            $isOrderActive = $order->is_active === true;
             $isNotPaid = $agentBonus && $agentBonus->paid_at === null;
 
-            $isAvailable = $isOrderDelivered && $isOrderActive && $isNotPaid;
+            $isAvailable = $isOrderDelivered && $isNotPaid;
 
-            // Отправляем все заказы на фронтенд, независимо от статуса
+            // Отправляем только активные заказы на фронтенд
             $ordersData[] = [
                 'id' => $order->id,
                 'order_number' => $order->order_number,

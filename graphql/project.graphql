@@ -25,6 +25,7 @@ type ProjectStatusType {
 
 type Project {
     id: ID!
+    project_number: String
     value: String
     user_id: ID
     client_id: ID
@@ -94,6 +95,7 @@ type Comment {
 
 input CreateProjectInput {
     value: String!
+    project_number: String
     user_id: ID
     client_id: ID
     region: String
@@ -110,6 +112,7 @@ input CreateProjectInput {
 input UpdateProjectInput {
     id: ID!
     value: String
+    project_number: String
     user_id: ID
     client_id: ID
     status_id: ID
