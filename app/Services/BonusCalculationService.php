@@ -191,7 +191,7 @@ class BonusCalculationService
             // Отправляем только активные заказы на фронтенд
             $ordersData[] = [
                 'id' => $order->id,
-                'order_number' => $order->order_number,
+                'order_number' => $order->order_number ?? '',
                 'order_amount' => $order->order_amount,
                 'agent_percentage' => $order->agent_percentage ?? 5.0,
                 'curator_percentage' => $order->curator_percentage ?? 5.0,

@@ -280,7 +280,7 @@ type ContractBonusInfo {
 "Информация о бонусах по закупке"
 type OrderBonusInfo {
     id: ID!
-    order_number: String!
+    order_number: String
     order_amount: Float
     agent_percentage: Float!
     curator_percentage: Float!
