@@ -130,9 +130,9 @@ class BonusCalculationService
                 continue;
             }
 
-            // Получаем бонусы из таблицы bonuses
-            $agentBonus = $contract->agentBonus;
-            $curatorBonus = $contract->curatorBonus;
+            // Получаем бонусы из таблицы bonuses через relationship
+            $agentBonus = $contract->getRelationValue('agentBonus');
+            $curatorBonus = $contract->getRelationValue('curatorBonus');
 
             // Суммы бонусов из связанных записей в таблице bonuses
             $agentBonusAmount = $agentBonus ? (float)$agentBonus->commission_amount : 0.0;
@@ -172,9 +172,10 @@ class BonusCalculationService
                 continue;
             }
 
-            // Получаем бонусы из таблицы bonuses
-            $agentBonus = $order->agentBonus;
-            $curatorBonus = $order->curatorBonus;
+            // Получаем бонусы из таблицы bonuses через relationship (не через accessor!)
+            // Используем getRelationValue чтобы избежать конфликта с accessor
+            $agentBonus = $order->getRelationValue('agentBonus');
+            $curatorBonus = $order->getRelationValue('curatorBonus');
 
             // Суммы бонусов из связанных записей в таблице bonuses
             $agentBonusAmount = $agentBonus ? (float)$agentBonus->commission_amount : 0.0;
