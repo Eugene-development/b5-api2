@@ -101,9 +101,10 @@ final class UpdateProject
             'project_id' => $project->id,
         ]);
 
-        // Assign current user as curator
-        $this->assignCurator($project);
+        // Assign current user as curator and create bonuses
+        $this->assignCuratorAndCreateBonuses($project);
     }
+
 
     /**
      * Handle status change logic
@@ -130,9 +131,15 @@ final class UpdateProject
             'new_status_slug' => $newStatus->slug,
         ]);
 
-        // If changing to "Принят куратором" (curator-processing), create curator relationship
+        // If changing to "Новый проект" (new-project) from "Принят куратором" (curator-processing)
+        // Remove curator relationship and curator bonuses
+        if ($newStatus->slug === 'new-project' && $oldStatusSlug === 'curator-processing') {
+            $this->removeCuratorAndBonuses($project);
+        }
+
+        // If changing to "Принят куратором" (curator-processing), create curator relationship and bonuses
         if ($newStatus->slug === 'curator-processing') {
-            $this->assignCurator($project);
+            $this->assignCuratorAndCreateBonuses($project);
         }
 
         // Статус, при котором бонусы аннулируются
@@ -149,6 +156,108 @@ final class UpdateProject
             $this->restoreProjectBonuses($project);
         }
     }
+
+    /**
+     * Remove curator relationship and curator bonuses from the project.
+     * Called when project status changes from "Принят куратором" to "Новый проект".
+     */
+    private function removeCuratorAndBonuses(Project $project): void
+    {
+        $bonusService = app(\App\Services\BonusService::class);
+        
+        // Remove curator bonuses first
+        $removedBonusesCount = $bonusService->removeCuratorBonusesForProject($project->id);
+        
+        // Remove curator relationship(s)
+        $removedCuratorsCount = ProjectUser::where('project_id', $project->id)
+            ->where('role', ProjectUser::ROLE_CURATOR)
+            ->delete();
+        
+        Log::info('UpdateProject: Removed curator and bonuses from project', [
+            'project_id' => $project->id,
+            'removed_curators_count' => $removedCuratorsCount,
+            'removed_bonuses_count' => $removedBonusesCount,
+        ]);
+    }
+
+    /**
+     * Assign current user as curator and create bonuses for all existing contracts and orders.
+     * Called when project status changes to "Принят куратором".
+     */
+    private function assignCuratorAndCreateBonuses(Project $project): void
+    {
+        // Get current authenticated user
+        $currentUser = Auth::user();
+
+        if (!$currentUser) {
+            Log::warning('UpdateProject: No authenticated user for curator assignment', [
+                'project_id' => $project->id,
+            ]);
+            return;
+        }
+
+        $userId = $currentUser->id;
+
+        // First, remove any existing curator relationships for this project
+        // This ensures we have a clean state before assigning a new curator
+        $existingCurator = ProjectUser::where('project_id', $project->id)
+            ->where('role', ProjectUser::ROLE_CURATOR)
+            ->first();
+
+        if ($existingCurator) {
+            // If the same curator is already assigned, just ensure bonuses exist
+            if ($existingCurator->user_id == $userId) {
+                Log::info('UpdateProject: Curator already assigned, ensuring bonuses exist', [
+                    'project_id' => $project->id,
+                    'curator_id' => $userId,
+                ]);
+            } else {
+                // Different curator - remove old one first
+                $bonusService = app(\App\Services\BonusService::class);
+                $bonusService->removeCuratorBonusesForProject($project->id);
+                $existingCurator->delete();
+                
+                Log::info('UpdateProject: Removed previous curator', [
+                    'project_id' => $project->id,
+                    'old_curator_id' => $existingCurator->user_id,
+                    'new_curator_id' => $userId,
+                ]);
+            }
+        }
+
+        // Create or ensure curator relationship exists
+        $curatorRelation = ProjectUser::where('project_id', $project->id)
+            ->where('user_id', $userId)
+            ->where('role', ProjectUser::ROLE_CURATOR)
+            ->first();
+
+        if (!$curatorRelation) {
+            $projectUser = new ProjectUser();
+            $projectUser->id = (string) \Illuminate\Support\Str::ulid();
+            $projectUser->user_id = $userId;
+            $projectUser->project_id = $project->id;
+            $projectUser->role = ProjectUser::ROLE_CURATOR;
+            $projectUser->save();
+
+            Log::info('UpdateProject: Curator assigned successfully', [
+                'project_user_id' => $projectUser->id,
+                'user_id' => $userId,
+                'project_id' => $project->id,
+                'role' => ProjectUser::ROLE_CURATOR,
+            ]);
+        }
+
+        // Create curator bonuses for all existing contracts and orders
+        $bonusService = app(\App\Services\BonusService::class);
+        $createdBonusesCount = $bonusService->createCuratorBonusesForProject($project->id, $userId);
+
+        Log::info('UpdateProject: Created curator bonuses for project', [
+            'project_id' => $project->id,
+            'curator_id' => $userId,
+            'created_bonuses_count' => $createdBonusesCount,
+        ]);
+    }
+
 
     /**
      * Cancel all unpaid bonuses for the project
@@ -175,61 +284,6 @@ final class UpdateProject
         Log::info('UpdateProject: Restored project bonuses', [
             'project_id' => $project->id,
             'restored_count' => $restoredCount,
-        ]);
-    }
-
-
-
-    /**
-     * Assign current user as curator to the project
-     */
-    private function assignCurator(Project $project): void
-    {
-        // Get current authenticated user
-        $currentUser = Auth::user();
-
-        if (!$currentUser) {
-            Log::warning('UpdateProject: No authenticated user for curator assignment', [
-                'project_id' => $project->id,
-            ]);
-            return;
-        }
-
-        $userId = $currentUser->id;
-
-        Log::info('UpdateProject: Assigning curator', [
-            'project_id' => $project->id,
-            'user_id' => $userId,
-            'user_email' => $currentUser->email,
-            'user_status_id' => $currentUser->status_id,
-        ]);
-
-        // Check if curator relationship already exists
-        $existingCurator = ProjectUser::where('project_id', $project->id)
-            ->where('user_id', $userId)
-            ->where('role', ProjectUser::ROLE_CURATOR)
-            ->first();
-
-        if ($existingCurator) {
-            Log::info('UpdateProject: Curator relationship already exists', [
-                'project_user_id' => $existingCurator->id,
-            ]);
-            return;
-        }
-
-        // Create new curator relationship
-        $projectUser = new ProjectUser();
-        $projectUser->id = (string) Str::ulid();
-        $projectUser->user_id = $userId;
-        $projectUser->project_id = $project->id;
-        $projectUser->role = ProjectUser::ROLE_CURATOR;
-        $projectUser->save();
-
-        Log::info('UpdateProject: Curator assigned successfully', [
-            'project_user_id' => $projectUser->id,
-            'user_id' => $userId,
-            'project_id' => $project->id,
-            'role' => ProjectUser::ROLE_CURATOR,
         ]);
     }
 }

@@ -1086,5 +1086,193 @@ class BonusService
 
         return $restoredCount;
     }
+
+    /**
+     * Удалить все бонусы куратора для проекта.
+     *
+     * Вызывается при переходе проекта из статуса "Принят куратором" в "Новый проект".
+     * Удаляются только невыплаченные кураторские бонусы.
+     *
+     * @param string $projectId ID проекта
+     * @return int Количество удалённых бонусов
+     */
+    public function removeCuratorBonusesForProject(string $projectId): int
+    {
+        $removedCount = 0;
+
+        // Получаем все договоры проекта
+        $contractIds = DB::table('contracts')
+            ->where('project_id', $projectId)
+            ->pluck('id')
+            ->toArray();
+
+        // Получаем все заказы проекта
+        $orderIds = DB::table('orders')
+            ->where('project_id', $projectId)
+            ->pluck('id')
+            ->toArray();
+
+        // Удаляем кураторские бонусы договоров (которые ещё не выплачены)
+        if (!empty($contractIds)) {
+            $contractBonusesDeleted = Bonus::whereIn('contract_id', $contractIds)
+                ->where('recipient_type', Bonus::RECIPIENT_CURATOR)
+                ->whereNull('paid_at')
+                ->delete();
+            $removedCount += $contractBonusesDeleted;
+        }
+
+        // Удаляем кураторские бонусы заказов (которые ещё не выплачены)
+        if (!empty($orderIds)) {
+            $orderBonusesDeleted = Bonus::whereIn('order_id', $orderIds)
+                ->where('recipient_type', Bonus::RECIPIENT_CURATOR)
+                ->whereNull('paid_at')
+                ->delete();
+            $removedCount += $orderBonusesDeleted;
+        }
+
+        \Illuminate\Support\Facades\Log::info('BonusService: Removed curator bonuses for project', [
+            'project_id' => $projectId,
+            'removed_count' => $removedCount,
+        ]);
+
+        return $removedCount;
+    }
+
+    /**
+     * Создать бонусы куратора для всех договоров и заказов проекта.
+     *
+     * Вызывается при назначении куратора на проект (смена статуса на "Принят куратором").
+     * Создаёт кураторские бонусы для всех активных договоров и заказов,
+     * у которых ещё нет кураторского бонуса.
+     *
+     * @param string $projectId ID проекта
+     * @param int $curatorId ID куратора
+     * @return int Количество созданных бонусов
+     */
+    public function createCuratorBonusesForProject(string $projectId, int $curatorId): int
+    {
+        $createdCount = 0;
+
+        // Получаем все активные договоры проекта
+        $contracts = Contract::where('project_id', $projectId)
+            ->where('is_active', true)
+            ->get();
+
+        foreach ($contracts as $contract) {
+            // Проверяем, нет ли уже бонуса куратора
+            $existingBonus = Bonus::where('contract_id', $contract->id)
+                ->where('recipient_type', Bonus::RECIPIENT_CURATOR)
+                ->first();
+
+            if (!$existingBonus) {
+                $bonus = $this->createCuratorBonusForContractWithCurator($contract, $curatorId);
+                if ($bonus) {
+                    $createdCount++;
+                    \Illuminate\Support\Facades\Log::info('BonusService: Created curator bonus for contract', [
+                        'bonus_id' => $bonus->id,
+                        'contract_id' => $contract->id,
+                        'curator_id' => $curatorId,
+                        'amount' => $bonus->commission_amount,
+                    ]);
+                }
+            }
+        }
+
+        // Получаем все активные заказы проекта
+        $orders = Order::where('project_id', $projectId)
+            ->where('is_active', true)
+            ->get();
+
+        foreach ($orders as $order) {
+            // Проверяем, нет ли уже бонуса куратора
+            $existingBonus = Bonus::where('order_id', $order->id)
+                ->where('recipient_type', Bonus::RECIPIENT_CURATOR)
+                ->first();
+
+            if (!$existingBonus) {
+                $bonus = $this->createCuratorBonusForOrderWithCurator($order, $curatorId);
+                if ($bonus) {
+                    $createdCount++;
+                    \Illuminate\Support\Facades\Log::info('BonusService: Created curator bonus for order', [
+                        'bonus_id' => $bonus->id,
+                        'order_id' => $order->id,
+                        'curator_id' => $curatorId,
+                        'amount' => $bonus->commission_amount,
+                    ]);
+                }
+            }
+        }
+
+        \Illuminate\Support\Facades\Log::info('BonusService: Created curator bonuses for project', [
+            'project_id' => $projectId,
+            'curator_id' => $curatorId,
+            'created_count' => $createdCount,
+        ]);
+
+        return $createdCount;
+    }
+
+    /**
+     * Создать бонус куратора для договора с указанным куратором.
+     *
+     * @param Contract $contract
+     * @param int $curatorId
+     * @return Bonus|null
+     */
+    public function createCuratorBonusForContractWithCurator(Contract $contract, int $curatorId): ?Bonus
+    {
+        $curatorCommission = $this->calculateCommission(
+            (float) $contract->contract_amount,
+            (float) $contract->curator_percentage
+        );
+
+        return Bonus::create([
+            'user_id' => $curatorId,
+            'contract_id' => $contract->id,
+            'order_id' => null,
+            'commission_amount' => $curatorCommission,
+            'percentage' => $contract->curator_percentage,
+            'status_id' => BonusStatus::pendingId(),
+            'recipient_type' => Bonus::RECIPIENT_CURATOR,
+            'bonus_type' => 'curator',
+            'accrued_at' => now(),
+            'available_at' => null,
+            'paid_at' => null,
+            'referral_user_id' => null,
+        ]);
+    }
+
+    /**
+     * Создать бонус куратора для заказа с указанным куратором.
+     *
+     * @param Order $order
+     * @param int $curatorId
+     * @return Bonus|null
+     */
+    public function createCuratorBonusForOrderWithCurator(Order $order, int $curatorId): ?Bonus
+    {
+        // Получаем order_amount из атрибутов напрямую, минуя accessor
+        $orderAmount = $order->getAttributes()['order_amount'] ?? $order->getRawOriginal('order_amount') ?? 0;
+
+        $curatorCommission = $this->calculateCommission(
+            (float) $orderAmount,
+            (float) $order->curator_percentage
+        );
+
+        return Bonus::create([
+            'user_id' => $curatorId,
+            'contract_id' => null,
+            'order_id' => $order->id,
+            'commission_amount' => $curatorCommission,
+            'percentage' => $order->curator_percentage,
+            'status_id' => BonusStatus::pendingId(),
+            'recipient_type' => Bonus::RECIPIENT_CURATOR,
+            'bonus_type' => 'curator',
+            'accrued_at' => now(),
+            'available_at' => null,
+            'paid_at' => null,
+            'referral_user_id' => null,
+        ]);
+    }
 }
 

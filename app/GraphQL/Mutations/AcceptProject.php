@@ -160,54 +160,15 @@ final class AcceptProject
     private function createCuratorBonusesForProject(Project $project, int $curatorId): void
     {
         $bonusService = app(BonusService::class);
-
-        // Создаём бонусы для договоров
-        $contracts = $project->contracts()->where('is_active', true)->get();
-        foreach ($contracts as $contract) {
-            // Проверяем, нет ли уже бонуса куратора
-            $existingBonus = Bonus::where('contract_id', $contract->id)
-                ->where('recipient_type', Bonus::RECIPIENT_CURATOR)
-                ->first();
-
-            if (!$existingBonus) {
-                $bonus = $bonusService->createCuratorBonusForContract($contract);
-                if ($bonus) {
-                    Log::info('AcceptProject: Created curator bonus for contract', [
-                        'bonus_id' => $bonus->id,
-                        'contract_id' => $contract->id,
-                        'curator_id' => $curatorId,
-                        'amount' => $bonus->commission_amount,
-                    ]);
-                }
-            }
-        }
-
-        // Создаём бонусы для заказов
-        $orders = $project->orders()->where('is_active', true)->get();
-        foreach ($orders as $order) {
-            // Проверяем, нет ли уже бонуса куратора
-            $existingBonus = Bonus::where('order_id', $order->id)
-                ->where('recipient_type', Bonus::RECIPIENT_CURATOR)
-                ->first();
-
-            if (!$existingBonus) {
-                $bonus = $bonusService->createCuratorBonusForOrder($order);
-                if ($bonus) {
-                    Log::info('AcceptProject: Created curator bonus for order', [
-                        'bonus_id' => $bonus->id,
-                        'order_id' => $order->id,
-                        'curator_id' => $curatorId,
-                        'amount' => $bonus->commission_amount,
-                    ]);
-                }
-            }
-        }
+        
+        // Используем централизованный метод из BonusService
+        $createdCount = $bonusService->createCuratorBonusesForProject($project->id, $curatorId);
 
         Log::info('AcceptProject: Finished creating curator bonuses', [
             'project_id' => $project->id,
             'curator_id' => $curatorId,
-            'contracts_count' => $contracts->count(),
-            'orders_count' => $orders->count(),
+            'created_bonuses_count' => $createdCount,
         ]);
     }
 }
+
