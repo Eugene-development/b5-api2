@@ -158,6 +158,8 @@ class BonusCalculationService
                 'is_active' => $contract->is_active,
                 'is_available' => $isAvailable,
                 'is_paid' => $agentBonus && $agentBonus->paid_at !== null,
+                'status_slug' => $statusSlug,
+                'is_partner_paid' => $isPartnerPaid,
             ];
 
             // Считаем бонусы
@@ -190,6 +192,9 @@ class BonusCalculationService
             $isAvailable = $isOrderDelivered && $isNotPaid;
 
             // Отправляем только активные заказы на фронтенд
+            // Получаем slug статуса для фронтенда
+            $orderStatusSlug = $order->status?->slug;
+
             $ordersData[] = [
                 'id' => $order->id,
                 'order_number' => $order->order_number ?? '',
@@ -201,6 +206,7 @@ class BonusCalculationService
                 'is_active' => $order->is_active,
                 'is_available' => $isAvailable,
                 'is_paid' => $agentBonus && $agentBonus->paid_at !== null,
+                'status_slug' => $orderStatusSlug,
             ];
 
             // Считаем бонусы

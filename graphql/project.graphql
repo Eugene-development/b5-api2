@@ -275,6 +275,10 @@ type ContractBonusInfo {
     is_available: Boolean!
     "Выплачен ли бонус"
     is_paid: Boolean!
+    "Slug статуса договора"
+    status_slug: String
+    "Оплачен ли бонус партнёром (фабрикой)"
+    is_partner_paid: Boolean
 }
 
 "Информация о бонусах по закупке"
@@ -291,4 +295,6 @@ type OrderBonusInfo {
     is_available: Boolean!
     "Выплачен ли бонус"
     is_paid: Boolean!
+    "Slug статуса заказа"
+    status_slug: String
 }

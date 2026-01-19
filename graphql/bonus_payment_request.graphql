@@ -58,6 +58,7 @@ input UpdateBonusPaymentRequestInput {
     phone_number: String
     contact_info: String
     comment: String
+    payment_date: DateTime
 }
 
 
