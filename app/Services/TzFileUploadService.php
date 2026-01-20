@@ -18,7 +18,7 @@ class TzFileUploadService
     private const MAX_FILE_SIZE = 10 * 1024 * 1024;
 
     /**
-     * Allowed MIME types for sketch files
+     * Allowed MIME types for sketch files (TZ files)
      */
     private const ALLOWED_SKETCH_TYPES = [
         'image/jpeg',
@@ -27,6 +27,12 @@ class TzFileUploadService
         'image/gif',
         'image/webp',
         'image/svg+xml',
+        // Document types (same as commercial offers)
+        'application/pdf',
+        'application/msword',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'application/vnd.ms-excel',
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     ];
 
     /**

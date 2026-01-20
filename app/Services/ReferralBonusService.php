@@ -61,6 +61,21 @@ class ReferralBonusService
             return null;
         }
 
+        // КРИТИЧЕСКАЯ ПРОВЕРКА: Реферер не должен быть владельцем проекта (агентом)
+        // Если referrerId === agentId, это означает ошибку в данных (агент = свой же реферер)
+        // Если реферер является владельцем проекта, то это ЕГО сделка, а не сделка реферала
+        // Реферальный бонус должен начисляться только за сделки ИЗ ПРОЕКТОВ РЕФЕРАЛОВ
+        $projectOwnerId = $this->getProjectOwnerIdFromContract($contract);
+        if ($projectOwnerId && $referrerId === $projectOwnerId) {
+            Log::info('ReferralBonusService: Skipping referral bonus - referrer is project owner', [
+                'agent_id' => $agentId,
+                'referrer_id' => $referrerId,
+                'project_owner_id' => $projectOwnerId,
+                'contract_id' => $contract->id
+            ]);
+            return null;
+        }
+
         // Проверяем срок действия реферальной программы
         if (!$this->isReferralProgramActive($agentId)) {
             Log::info('ReferralBonusService: Referral program expired', [
@@ -114,6 +129,20 @@ class ReferralBonusService
         // Получаем реферера агента
         $referrerId = $this->getReferrerId($agentId);
         if (!$referrerId) {
+            return null;
+        }
+
+        // КРИТИЧЕСКАЯ ПРОВЕРКА: Реферер не должен быть владельцем проекта (агентом)
+        // Если реферер является владельцем проекта, то это ЕГО сделка, а не сделка реферала
+        // Реферальный бонус должен начисляться только за сделки ИЗ ПРОЕКТОВ РЕФЕРАЛОВ
+        $projectOwnerId = $this->getProjectOwnerIdFromOrder($order);
+        if ($projectOwnerId && $referrerId === $projectOwnerId) {
+            Log::info('ReferralBonusService: Skipping referral bonus - referrer is project owner', [
+                'agent_id' => $agentId,
+                'referrer_id' => $referrerId,
+                'project_owner_id' => $projectOwnerId,
+                'order_id' => $order->id
+            ]);
             return null;
         }
 
@@ -323,5 +352,45 @@ class ReferralBonusService
         }
 
         return $stats;
+    }
+
+    /**
+     * Получить ID владельца проекта из договора.
+     *
+     * @param Contract $contract
+     * @return int|null
+     */
+    private function getProjectOwnerIdFromContract(Contract $contract): ?int
+    {
+        if (!$contract->project_id) {
+            return null;
+        }
+
+        // Загружаем проект если не загружен
+        if (!$contract->relationLoaded('project')) {
+            $contract->load('project');
+        }
+
+        return $contract->project?->user_id;
+    }
+
+    /**
+     * Получить ID владельца проекта из заказа.
+     *
+     * @param Order $order
+     * @return int|null
+     */
+    private function getProjectOwnerIdFromOrder(Order $order): ?int
+    {
+        if (!$order->project_id) {
+            return null;
+        }
+
+        // Загружаем проект если не загружен
+        if (!$order->relationLoaded('project')) {
+            $order->load('project');
+        }
+
+        return $order->project?->user_id;
     }
 }

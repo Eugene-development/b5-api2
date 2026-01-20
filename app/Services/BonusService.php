@@ -880,9 +880,11 @@ class BonusService
             return $project->user_id;
         }
 
-        // Альтернативно: ищем в связи project_user (если используется)
+        // Альтернативно: ищем в связи project_user с ролью 'agent'
+        // ВАЖНО: фильтруем по роли, чтобы не вернуть куратора или другого пользователя
         $projectUser = DB::table('project_user')
             ->where('project_id', $projectId)
+            ->where('role', 'agent')
             ->first();
 
         if ($projectUser) {
