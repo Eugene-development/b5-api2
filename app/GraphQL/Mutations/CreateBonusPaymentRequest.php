@@ -50,9 +50,11 @@ final readonly class CreateBonusPaymentRequest
         }
 
         // Определяем тип запрашивающего для валидации баланса
-        $requesterType = $input['requester_type'] ?? BonusPaymentRequest::REQUESTER_AGENT;
+        // Если не указан явно, считаем баланс по ВСЕМ типам бонусов пользователя
+        $requesterType = $input['requester_type'] ?? null;
 
         // Валидация суммы против доступного баланса (Property 7: Balance Validation)
+        // Если requesterType не указан, считаем общий баланс по всем типам бонусов
         $availableBalance = $this->bonusPaymentService->calculateAvailableBalance($user->id, $requesterType);
         if ($amount > $availableBalance) {
             throw new Error(
@@ -77,14 +79,14 @@ final readonly class CreateBonusPaymentRequest
         }
 
         // Создаём заявку и связываем бонусы в транзакции
-        $request = DB::transaction(function () use ($user, $amount, $paymentMethod, $input, $requestedStatus) {
-            // Определяем тип запрашивающего (по умолчанию agent)
-            $requesterType = $input['requester_type'] ?? BonusPaymentRequest::REQUESTER_AGENT;
+        $request = DB::transaction(function () use ($user, $amount, $paymentMethod, $input, $requestedStatus, $requesterType) {
+            // Для сохранения в БД используем agent если не указан явно
+            $requesterTypeForDb = $requesterType ?? BonusPaymentRequest::REQUESTER_AGENT;
 
             // Создаём заявку
             $request = BonusPaymentRequest::create([
                 'agent_id' => $user->id,
-                'requester_type' => $requesterType,
+                'requester_type' => $requesterTypeForDb,
                 'amount' => $amount,
                 'payment_method' => $paymentMethod,
                 'card_number' => $paymentMethod === 'card' ? ($input['card_number'] ?? null) : null,
@@ -94,7 +96,8 @@ final readonly class CreateBonusPaymentRequest
                 'status_id' => $requestedStatus->id,
             ]);
 
-            // Связываем бонусы с заявкой по FIFO (фильтруем по типу получателя)
+            // Связываем бонусы с заявкой по FIFO
+            // Если requesterType не указан, берём бонусы всех типов
             $this->bonusPaymentService->linkBonusesToPaymentRequest($request, $user->id, $amount, $requesterType);
 
             return $request;
