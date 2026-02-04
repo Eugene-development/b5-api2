@@ -14,7 +14,7 @@ type Order {
     order_amount: Float
     "Процент агента (дефолт 5%)"
     agent_percentage: Float!
-    "Процент куратора (дефолт 5%)"
+    "Процент куратора (дефолт 2%)"
     curator_percentage: Float!
     "Рассчитанный бонус агента (order_amount × agent_percentage / 100)"
     agent_bonus: Float
@@ -71,8 +71,8 @@ input CreateOrderInput {
     order_amount: Float @rules(apply: ["nullable", "numeric", "min:0"])
     "Процент агента (дефолт 5%)"
     agent_percentage: Float = 5.0 @rules(apply: ["nullable", "numeric", "min:0", "max:100"])
-    "Процент куратора (дефолт 5%)"
-    curator_percentage: Float = 5.0 @rules(apply: ["nullable", "numeric", "min:0", "max:100"])
+    "Процент куратора (дефолт 2%)"
+    curator_percentage: Float = 2.0 @rules(apply: ["nullable", "numeric", "min:0", "max:100"])
     positions: [CreateOrderPositionInput!]!
 }
 
