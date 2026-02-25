@@ -31,6 +31,9 @@ RUN addgroup -g 82 -S www-data 2>/dev/null || true \
 # Set working directory
 WORKDIR /var/www
 
+# Invalidate cache from here to pick up code changes
+ARG CACHE_BUST=1
+
 # Copy application code
 COPY --chown=laravel:laravel . .
 
