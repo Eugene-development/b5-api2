@@ -62,7 +62,7 @@ input UpdateContractInput {
     is_urgent: Boolean
 }
 
-extend type Query {
+extend type Query @staff(roles: ["admin", "curator"]) {
     "Get all contracts with pagination"
     contracts(first: Int = 1000, page: Int): [Contract!]! @paginate
 
@@ -79,7 +79,7 @@ extend type Query {
     contractStatuses: [ContractStatus!]! @all(model: "App\\Models\\ContractStatus", scopes: ["active"])
 }
 
-extend type Mutation {
+extend type Mutation @staff(roles: ["admin", "curator"]) {
     "Create a new contract with automatic bonus creation"
     createContract(input: CreateContractInput!): Contract!
         @field(resolver: "App\\GraphQL\\Mutations\\CreateContract")

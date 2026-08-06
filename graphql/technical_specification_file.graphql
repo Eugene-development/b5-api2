@@ -32,7 +32,7 @@ input DeleteTzFileInput {
     id: ID!
 }
 
-extend type Mutation {
+extend type Mutation @staff {
     "Upload a file to a technical specification"
     uploadTzFile(input: UploadTzFileInput! @spread): TechnicalSpecificationFile!
         @field(resolver: "App\\GraphQL\\Mutations\\UploadTzFile")

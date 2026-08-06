@@ -206,7 +206,7 @@ extend type Query {
 
     "Получить доступные к выплате бонусы агента (для админа)"
     availableBonusesForPayment(agent_id: ID!): [AgentBonus!]!
-        @field(resolver: "App\\GraphQL\\Queries\\AvailableBonusesQuery")
+        @field(resolver: "App\\GraphQL\\Queries\\AvailableBonusesQuery") @staff(roles: ["admin"])
 
     "Справочник статусов бонусов"
     bonusStatuses: [BonusStatus!]! @all(model: "App\\Models\\BonusStatus")
@@ -216,14 +216,14 @@ extend type Query {
 
     "Получить все бонусы для админки"
     adminBonuses(filters: AgentBonusFilters): [AgentBonus!]!
-        @field(resolver: "App\\GraphQL\\Queries\\AdminBonusesQuery")
+        @field(resolver: "App\\GraphQL\\Queries\\AdminBonusesQuery") @staff(roles: ["admin"])
 
     "Получить статистику бонусов для админки"
     adminBonusStats(filters: AgentBonusFilters): AdminBonusStats!
-        @field(resolver: "App\\GraphQL\\Queries\\AdminBonusStatsQuery")
+        @field(resolver: "App\\GraphQL\\Queries\\AdminBonusStatsQuery") @staff(roles: ["admin"])
 }
 
-extend type Mutation {
+extend type Mutation @staff(roles: ["admin"]) {
     "Обновить статус оплаты партнёром для договора"
     updateContractPartnerPaymentStatus(contract_id: ID!, status_code: String!): Contract!
         @field(resolver: "App\\GraphQL\\Mutations\\UpdateContractPartnerPaymentStatus")

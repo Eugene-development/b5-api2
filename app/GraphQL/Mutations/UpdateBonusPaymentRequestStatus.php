@@ -22,15 +22,12 @@ final readonly class UpdateBonusPaymentRequestStatus
 
     public function __construct(?BonusPaymentService $bonusPaymentService = null)
     {
-        $this->bonusPaymentService = $bonusPaymentService ?? new BonusPaymentService();
+        $this->bonusPaymentService = $bonusPaymentService ?? new BonusPaymentService;
     }
 
     /**
      * Обновить статус заявки на выплату.
      *
-     * @param  null  $_
-     * @param  array  $args
-     * @return BonusPaymentRequest
      * @throws Error
      */
     public function __invoke(null $_, array $args): BonusPaymentRequest
@@ -38,25 +35,25 @@ final readonly class UpdateBonusPaymentRequestStatus
         $requestId = $args['request_id'];
         $statusCode = $args['status_code'];
 
-        // Находим заявку
-        $request = BonusPaymentRequest::with(['status'])->find($requestId);
-        if (!$request) {
-            throw new Error('Заявка на выплату не найдена');
-        }
+        $request = DB::transaction(function () use ($requestId, $statusCode): BonusPaymentRequest {
+            // Lock before reading the current status so concurrent transitions cannot
+            // settle or roll back the same bonuses twice.
+            $request = BonusPaymentRequest::with(['status'])
+                ->lockForUpdate()
+                ->find($requestId);
+            if (! $request) {
+                throw new Error('Заявка на выплату не найдена');
+            }
 
-        // Валидация статуса (Property 5: Valid Status Transition)
-        $newStatus = BonusPaymentStatus::findByCode($statusCode);
-        if (!$newStatus) {
-            throw new Error("Статус '{$statusCode}' не найден в системе");
-        }
+            $newStatus = BonusPaymentStatus::findByCode($statusCode);
+            if (! $newStatus) {
+                throw new Error("Статус '{$statusCode}' не найден в системе");
+            }
 
-        // Определяем текущий статус
-        $currentStatusCode = $request->status ? $request->status->code : null;
-        $isTransitionToPaid = $statusCode === 'paid' && $currentStatusCode !== 'paid';
-        $isTransitionFromPaid = $currentStatusCode === 'paid' && $statusCode !== 'paid';
+            $currentStatusCode = $request->status?->code;
+            $isTransitionToPaid = $statusCode === 'paid' && $currentStatusCode !== 'paid';
+            $isTransitionFromPaid = $currentStatusCode === 'paid' && $statusCode !== 'paid';
 
-        // Выполняем обновление в транзакции
-        DB::transaction(function () use ($request, $newStatus, $statusCode, $isTransitionToPaid, $isTransitionFromPaid) {
             // Подготавливаем данные для обновления
             $updateData = ['status_id' => $newStatus->id];
 
@@ -79,11 +76,11 @@ final readonly class UpdateBonusPaymentRequestStatus
             if ($isTransitionFromPaid) {
                 $this->bonusPaymentService->rollbackSettlement($request);
             }
+
+            return $request;
         });
 
         // Перезагружаем заявку со связями
-        $request = BonusPaymentRequest::with(['agent', 'status', 'linkedBonuses.bonus'])->find($requestId);
-
-        return $request;
+        return $request->fresh(['agent', 'status', 'linkedBonuses.bonus']);
     }
 }

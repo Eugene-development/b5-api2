@@ -3,12 +3,12 @@
 namespace App\GraphQL\Mutations;
 
 use App\Models\Project;
-use App\Models\ProjectUser;
 use App\Models\ProjectStatus;
+use App\Models\ProjectUser;
 use App\Models\User;
-use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Str;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 final class UpdateProject
 {
@@ -19,62 +19,68 @@ final class UpdateProject
      */
     public function __invoke($_, array $args)
     {
-        $projectId = (string) $args['id'];
+        return DB::transaction(function () use ($args) {
+            $projectId = (string) $args['id'];
 
-        Log::info('UpdateProject: Mutation called', [
-            'project_id' => $projectId,
-            'args' => $args,
-        ]);
+            Log::info('UpdateProject: Mutation called', [
+                'project_id' => $projectId,
+                'args' => $args,
+            ]);
 
-        // Find the project
-        $project = Project::find($projectId);
-        if (!$project) {
-            Log::error('UpdateProject: Project not found', ['project_id' => $projectId]);
-            throw new \Exception("Project not found with ID: {$projectId}");
-        }
+            // Find the project
+            $project = Project::lockForUpdate()->find($projectId);
+            if (! $project) {
+                Log::error('UpdateProject: Project not found', ['project_id' => $projectId]);
+                throw new \Exception("Project not found with ID: {$projectId}");
+            }
 
-        $oldStatusId = $project->status_id;
-        $newStatusId = isset($args['status_id']) ? (string) $args['status_id'] : null;
+            $oldStatusId = $project->status_id;
+            $newStatusId = isset($args['status_id']) ? (string) $args['status_id'] : null;
 
-        // Check if status is changing
-        $statusChanging = $newStatusId && $newStatusId !== $oldStatusId;
+            if ($newStatusId && ! ProjectStatus::whereKey($newStatusId)->exists()) {
+                throw new \InvalidArgumentException("Project status not found with ID: {$newStatusId}");
+            }
 
-        // Update project fields
-        $fillableFields = ['value', 'user_id', 'client_id', 'status_id', 'region', 'description',
-                          'is_active', 'is_incognito', 'contract_name', 'contract_date',
-                          'contract_amount', 'agent_percentage', 'planned_completion_date'];
+            // Check if status is changing
+            $statusChanging = $newStatusId && $newStatusId !== $oldStatusId;
 
-        foreach ($fillableFields as $field) {
-            if (array_key_exists($field, $args)) {
-                // Handle address/region mapping
-                if ($field === 'region') {
-                    $project->address = $args[$field];
-                } else {
-                    $project->{$field} = $args[$field];
+            // Update project fields
+            $fillableFields = ['value', 'user_id', 'client_id', 'status_id', 'region', 'description',
+                'is_active', 'is_incognito', 'contract_name', 'contract_date',
+                'contract_amount', 'agent_percentage', 'planned_completion_date'];
+
+            foreach ($fillableFields as $field) {
+                if (array_key_exists($field, $args)) {
+                    // Handle address/region mapping
+                    if ($field === 'region') {
+                        $project->address = $args[$field];
+                    } else {
+                        $project->{$field} = $args[$field];
+                    }
                 }
             }
-        }
 
-        $project->save();
+            $project->save();
 
-        Log::info('UpdateProject: Project updated', [
-            'project_id' => $project->id,
-            'old_status_id' => $oldStatusId,
-            'new_status_id' => $newStatusId,
-            'status_changing' => $statusChanging,
-        ]);
+            Log::info('UpdateProject: Project updated', [
+                'project_id' => $project->id,
+                'old_status_id' => $oldStatusId,
+                'new_status_id' => $newStatusId,
+                'status_changing' => $statusChanging,
+            ]);
 
-        // If status is changing, check if we need to create curator relationship
-        if ($statusChanging && $newStatusId) {
-            $this->handleStatusChange($project, $oldStatusId, $newStatusId);
-        } else {
-            // Even if status is not changing, check if curator needs to be assigned
-            // This handles the case when status was set before the curator logic was implemented
-            $this->ensureCuratorAssigned($project);
-        }
+            // If status is changing, check if we need to create curator relationship
+            if ($statusChanging && $newStatusId) {
+                $this->handleStatusChange($project, $oldStatusId, $newStatusId);
+            } else {
+                // Even if status is not changing, check if curator needs to be assigned
+                // This handles the case when status was set before the curator logic was implemented
+                $this->ensureCuratorAssigned($project);
+            }
 
-        // Reload project with relationships
-        return $project->fresh(['status', 'agent', 'client', 'users', 'curator', 'projectUsers']);
+            // Reload project with relationships
+            return $project->fresh(['status', 'agent', 'client', 'users', 'curator', 'projectUsers']);
+        });
     }
 
     /**
@@ -84,7 +90,7 @@ final class UpdateProject
     {
         // Get current status
         $status = $project->status;
-        if (!$status || $status->slug !== 'curator-processing') {
+        if (! $status || $status->slug !== 'curator-processing') {
             return;
         }
 
@@ -105,7 +111,6 @@ final class UpdateProject
         $this->assignCuratorAndCreateBonuses($project);
     }
 
-
     /**
      * Handle status change logic
      */
@@ -113,8 +118,9 @@ final class UpdateProject
     {
         // Get the new status to check its slug
         $newStatus = ProjectStatus::find($newStatusId);
-        if (!$newStatus) {
+        if (! $newStatus) {
             Log::warning('UpdateProject: New status not found', ['status_id' => $newStatusId]);
+
             return;
         }
 
@@ -148,6 +154,7 @@ final class UpdateProject
         // If changing to "Отказ" (client-refused), cancel all bonuses
         if ($newStatus->slug === $cancellingStatus) {
             $this->cancelProjectBonuses($project);
+
             return;
         }
 
@@ -164,15 +171,15 @@ final class UpdateProject
     private function removeCuratorAndBonuses(Project $project): void
     {
         $bonusService = app(\App\Services\BonusService::class);
-        
+
         // Remove curator bonuses first
         $removedBonusesCount = $bonusService->removeCuratorBonusesForProject($project->id);
-        
+
         // Remove curator relationship(s)
         $removedCuratorsCount = ProjectUser::where('project_id', $project->id)
             ->where('role', ProjectUser::ROLE_CURATOR)
             ->delete();
-        
+
         Log::info('UpdateProject: Removed curator and bonuses from project', [
             'project_id' => $project->id,
             'removed_curators_count' => $removedCuratorsCount,
@@ -189,11 +196,8 @@ final class UpdateProject
         // Get current authenticated user
         $currentUser = Auth::user();
 
-        if (!$currentUser) {
-            Log::warning('UpdateProject: No authenticated user for curator assignment', [
-                'project_id' => $project->id,
-            ]);
-            return;
+        if (! $currentUser) {
+            throw new \RuntimeException('Authenticated curator is required for this status change');
         }
 
         $userId = $currentUser->id;
@@ -216,7 +220,7 @@ final class UpdateProject
                 $bonusService = app(\App\Services\BonusService::class);
                 $bonusService->removeCuratorBonusesForProject($project->id);
                 $existingCurator->delete();
-                
+
                 Log::info('UpdateProject: Removed previous curator', [
                     'project_id' => $project->id,
                     'old_curator_id' => $existingCurator->user_id,
@@ -231,8 +235,8 @@ final class UpdateProject
             ->where('role', ProjectUser::ROLE_CURATOR)
             ->first();
 
-        if (!$curatorRelation) {
-            $projectUser = new ProjectUser();
+        if (! $curatorRelation) {
+            $projectUser = new ProjectUser;
             $projectUser->id = (string) \Illuminate\Support\Str::ulid();
             $projectUser->user_id = $userId;
             $projectUser->project_id = $project->id;
@@ -257,7 +261,6 @@ final class UpdateProject
             'created_bonuses_count' => $createdBonusesCount,
         ]);
     }
-
 
     /**
      * Cancel all unpaid bonuses for the project

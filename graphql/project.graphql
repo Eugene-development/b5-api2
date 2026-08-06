@@ -129,29 +129,30 @@ input UpdateProjectInput {
 
 extend type Query {
     "Get all projects"
-    projects: [Project!]! @paginate
+    projects: [Project!]! @paginate @staff
 
     "Get a single project by ID"
-    project(id: ID! @whereKey): Project @find
+    project(id: ID! @whereKey): Project @find @staff
 
     "Get projects by status"
-    projectsByStatus(status: ProjectStatus! @where): [Project!]! @paginate
+    projectsByStatus(status: ProjectStatus! @where): [Project!]! @paginate @staff
 
     "Get projects by agent"
     # projectsByAgent(user_id: ID! @where): [Project!]! @paginate
-    projectsByAgent(user_id: ID! @where): [Project!]! @all
+    projectsByAgent(user_id: ID!): [Project!]!
+        @field(resolver: "App\\GraphQL\\Queries\\ProjectsByAgent")
 
     "Check if there are any new projects (status_id = 01K7HRKTSQV1894Y3JD9WV5KZX)"
-    hasNewProjects: Boolean! @field(resolver: "App\\GraphQL\\Queries\\HasNewProjects")
+    hasNewProjects: Boolean! @field(resolver: "App\\GraphQL\\Queries\\HasNewProjects") @staff
 
     "Get all project statuses"
     projectStatuses: [ProjectStatusType!]! @all(model: "App\\Models\\ProjectStatus")
 
     "Get all clients"
-    clients: [Client!]! @all(model: "App\\Models\\Client")
+    clients: [Client!]! @all(model: "App\\Models\\Client") @staff
 
     "Get a single client by ID"
-    client(id: ID! @whereKey): Client @find(model: "App\\Models\\Client")
+    client(id: ID! @whereKey): Client @find(model: "App\\Models\\Client") @staff
 }
 
 type ProjectUser {
@@ -164,7 +165,7 @@ type ProjectUser {
     updated_at: DateTime!
 }
 
-extend type Mutation {
+extend type Mutation @staff(roles: ["admin", "curator", "manager"]) {
     "Create a new project"
     createProject(input: CreateProjectInput! @spread): Project! @field(resolver: "App\\GraphQL\\Mutations\\CreateProject")
 

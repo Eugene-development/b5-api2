@@ -30,7 +30,7 @@ input UpdateActionInput {
     is_active: Boolean
 }
 
-extend type Query {
+extend type Query @staff {
     "Get all actions"
     actions: [Action!]! @paginate
 
@@ -38,7 +38,7 @@ extend type Query {
     action(id: ID! @whereKey): Action @find
 }
 
-extend type Mutation {
+extend type Mutation @staff {
     "Create a new action"
     createAction(input: CreateActionInput! @spread): Action!
         @create(model: "App\\Models\\Action")

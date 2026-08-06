@@ -52,7 +52,7 @@ input UpdateComplaintInput {
     actual_resolution_date: Date @rules(apply: ["nullable", "date"])
 }
 
-extend type Query {
+extend type Query @staff(roles: ["admin", "curator"]) {
     "Get all complaints with pagination"
     complaints(first: Int = 1000, page: Int): [Complaint!]! @paginate
 
@@ -69,7 +69,7 @@ extend type Query {
     activeComplaints(is_active: Boolean! @where): [Complaint!]! @paginate
 }
 
-extend type Mutation {
+extend type Mutation @staff(roles: ["admin", "curator"]) {
     "Create a new complaint"
     createComplaint(input: CreateComplaintInput! @spread): Complaint! @create
 

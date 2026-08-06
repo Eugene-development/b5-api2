@@ -29,7 +29,7 @@ input UpdateProjectSketchInput {
     order: Int
 }
 
-extend type Query {
+extend type Query @staff {
     "Get all sketches for a project"
     projectSketches(project_id: ID! @where): [ProjectSketch!]! @all
 
@@ -37,7 +37,7 @@ extend type Query {
     projectSketch(id: ID! @whereKey): ProjectSketch @find
 }
 
-extend type Mutation {
+extend type Mutation @staff {
     "Upload a new sketch for a project"
     uploadProjectSketch(project_id: ID!, file: Upload!): ProjectSketch!
 

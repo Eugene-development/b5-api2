@@ -23,15 +23,12 @@ final readonly class CreateBonusPaymentRequest
 
     public function __construct(?BonusPaymentService $bonusPaymentService = null)
     {
-        $this->bonusPaymentService = $bonusPaymentService ?? new BonusPaymentService();
+        $this->bonusPaymentService = $bonusPaymentService ?? new BonusPaymentService;
     }
 
     /**
      * Создать заявку на выплату бонуса.
      *
-     * @param  null  $_
-     * @param  array  $args
-     * @return BonusPaymentRequest
      * @throws Error
      */
     public function __invoke(null $_, array $args): BonusPaymentRequest
@@ -39,7 +36,7 @@ final readonly class CreateBonusPaymentRequest
         $input = $args['input'];
         $user = Auth::user();
 
-        if (!$user) {
+        if (! $user) {
             throw new Error('Необходима авторизация');
         }
 
@@ -49,23 +46,22 @@ final readonly class CreateBonusPaymentRequest
             throw new Error('Сумма выплаты должна быть больше нуля');
         }
 
-        // Определяем тип запрашивающего для валидации баланса
-        // Если не указан явно, считаем баланс по ВСЕМ типам бонусов пользователя
-        $requesterType = $input['requester_type'] ?? null;
+        $statusSlug = $user->status?->slug;
+        $requesterType = $input['requester_type']
+            ?? ($statusSlug === 'curator'
+                ? BonusPaymentRequest::REQUESTER_CURATOR
+                : BonusPaymentRequest::REQUESTER_AGENT);
 
-        // Валидация суммы против доступного баланса (Property 7: Balance Validation)
-        // Если requesterType не указан, считаем общий баланс по всем типам бонусов
-        $availableBalance = $this->bonusPaymentService->calculateAvailableBalance($user->id, $requesterType);
-        if ($amount > $availableBalance) {
-            throw new Error(
-                "Сумма превышает доступный баланс. Доступно: " .
-                number_format($availableBalance, 2, '.', ' ') . " ₽"
-            );
+        if (
+            $requesterType === BonusPaymentRequest::REQUESTER_CURATOR
+            && ! in_array($statusSlug, ['admin', 'curator'], true)
+        ) {
+            throw new Error('Запрашивать кураторские бонусы может только куратор.');
         }
 
         // Валидация способа оплаты
         $paymentMethod = $input['payment_method'];
-        if (!in_array($paymentMethod, ['card', 'sbp', 'other'])) {
+        if (! in_array($paymentMethod, ['card', 'sbp', 'other'])) {
             throw new Error('Недопустимый способ выплаты');
         }
 
@@ -74,19 +70,30 @@ final readonly class CreateBonusPaymentRequest
 
         // Получаем статус "requested" (Property 1: Default Status Assignment)
         $requestedStatus = BonusPaymentStatus::findByCode('requested');
-        if (!$requestedStatus) {
+        if (! $requestedStatus) {
             throw new Error('Статус "requested" не найден в системе');
         }
 
         // Создаём заявку и связываем бонусы в транзакции
         $request = DB::transaction(function () use ($user, $amount, $paymentMethod, $input, $requestedStatus, $requesterType) {
-            // Для сохранения в БД используем agent если не указан явно
-            $requesterTypeForDb = $requesterType ?? BonusPaymentRequest::REQUESTER_AGENT;
+            // Balance validation and reservation must use the same transaction.
+            // The selected bonus rows are locked until their links are written.
+            $availableBalance = $this->bonusPaymentService->calculateAvailableBalance(
+                $user->id,
+                $requesterType,
+                true
+            );
+            if ($amount > $availableBalance) {
+                throw new Error(
+                    'Сумма превышает доступный баланс. Доступно: '.
+                    number_format($availableBalance, 2, '.', ' ').' ₽'
+                );
+            }
 
             // Создаём заявку
             $request = BonusPaymentRequest::create([
                 'agent_id' => $user->id,
-                'requester_type' => $requesterTypeForDb,
+                'requester_type' => $requesterType,
                 'amount' => $amount,
                 'payment_method' => $paymentMethod,
                 'card_number' => $paymentMethod === 'card' ? ($input['card_number'] ?? null) : null,
@@ -97,7 +104,6 @@ final readonly class CreateBonusPaymentRequest
             ]);
 
             // Связываем бонусы с заявкой по FIFO
-            // Если requesterType не указан, берём бонусы всех типов
             $this->bonusPaymentService->linkBonusesToPaymentRequest($request, $user->id, $amount, $requesterType);
 
             return $request;
@@ -112,8 +118,6 @@ final readonly class CreateBonusPaymentRequest
     /**
      * Валидация реквизитов в зависимости от способа оплаты.
      *
-     * @param string $paymentMethod
-     * @param array $input
      * @throws Error
      */
     private function validatePaymentDetails(string $paymentMethod, array $input): void

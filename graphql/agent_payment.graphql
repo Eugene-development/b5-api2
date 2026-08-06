@@ -56,11 +56,11 @@ extend type Query {
 
     "Получить все выплаты (для админа)"
     agentPaymentsAdmin(agent_id: ID, filters: AgentPaymentFilters): [AgentPayment!]!
-        @field(resolver: "App\\GraphQL\\Queries\\AgentPaymentsAdminQuery")
+        @field(resolver: "App\\GraphQL\\Queries\\AgentPaymentsAdminQuery") @staff(roles: ["admin"])
 
     "Получить агентов с доступными бонусами (для админа)"
     agentsWithAvailableBonuses: [AgentWithBonuses!]!
-        @field(resolver: "App\\GraphQL\\Queries\\AgentsWithAvailableBonusesQuery")
+        @field(resolver: "App\\GraphQL\\Queries\\AgentsWithAvailableBonusesQuery") @staff(roles: ["admin"])
 
     "Справочник статусов выплат"
     paymentStatuses: [PaymentStatus!]! @all(model: "App\\Models\\PaymentStatus")
@@ -79,7 +79,7 @@ type AgentWithBonuses {
 }
 
 
-extend type Mutation {
+extend type Mutation @staff(roles: ["admin"]) {
     "Создать выплату агенту (только для админа)"
     createAgentPayment(input: CreateAgentPaymentInput!): AgentPayment!
         @field(resolver: "App\\GraphQL\\Mutations\\CreateAgentPayment")

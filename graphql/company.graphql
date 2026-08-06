@@ -83,7 +83,7 @@ input UpdateCompanyInput {
     status_id: ID @rules(apply: ["nullable", "exists:company_statuses,id"])
 }
 
-extend type Query {
+extend type Query @staff(roles: ["admin", "curator"]) {
     "Get all companies"
     companies: [Company!]! @paginate
 
@@ -100,7 +100,7 @@ extend type Query {
     activeCompanyStatuses: [CompanyStatus!]! @all(model: "App\\Models\\CompanyStatus", scopes: ["active"])
 }
 
-extend type Mutation {
+extend type Mutation @staff(roles: ["admin", "curator"]) {
     "Create a new company"
     createCompany(input: CreateCompanyInput! @spread): Company! @create(model: "App\\Models\\Company")
 

@@ -78,7 +78,7 @@ extend type Query {
     "Получить заявки на выплату (для админа)"
     bonusPaymentRequests(
         filters: BonusPaymentRequestFilters @spread
-    ): [BonusPaymentRequest!]! @paginate(defaultCount: 20, model: "App\\Models\\BonusPaymentRequest")
+    ): [BonusPaymentRequest!]! @paginate(defaultCount: 20, model: "App\\Models\\BonusPaymentRequest") @staff(roles: ["admin"])
 
     "Получить заявки текущего агента"
     myBonusPaymentRequests(
@@ -97,13 +97,13 @@ extend type Mutation {
 
     "Обновить статус заявки на выплату (для админа)"
     updateBonusPaymentRequestStatus(request_id: ID!, status_code: String!): BonusPaymentRequest!
-        @field(resolver: "App\\GraphQL\\Mutations\\UpdateBonusPaymentRequestStatus")
+        @field(resolver: "App\\GraphQL\\Mutations\\UpdateBonusPaymentRequestStatus") @staff(roles: ["admin"])
 
     "Обновить заявку на выплату (для админа)"
     updateBonusPaymentRequest(request_id: ID!, input: UpdateBonusPaymentRequestInput!): BonusPaymentRequest!
-        @field(resolver: "App\\GraphQL\\Mutations\\UpdateBonusPaymentRequest")
+        @field(resolver: "App\\GraphQL\\Mutations\\UpdateBonusPaymentRequest") @staff(roles: ["admin"])
 
     "Удалить заявку на выплату (для админа)"
     deleteBonusPaymentRequest(request_id: ID!): Boolean!
-        @field(resolver: "App\\GraphQL\\Mutations\\DeleteBonusPaymentRequest")
+        @field(resolver: "App\\GraphQL\\Mutations\\DeleteBonusPaymentRequest") @staff(roles: ["admin"])
 }

@@ -133,7 +133,7 @@ type OrderStatus {
     is_active: Boolean!
 }
 
-extend type Query {
+extend type Query @staff(roles: ["admin", "curator", "manager"]) {
     "Get all orders"
     orders: [Order!]! @paginate
 
@@ -169,7 +169,7 @@ input CreateSingleOrderPositionInput {
     is_urgent: Boolean = false
 }
 
-extend type Mutation {
+extend type Mutation @staff(roles: ["admin", "curator", "manager"]) {
     "Create a new order with positions"
     createOrder(input: CreateOrderInput!): Order! @field(resolver: "App\\GraphQL\\Mutations\\CreateOrder")
 

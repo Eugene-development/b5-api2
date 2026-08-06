@@ -31,19 +31,30 @@ class BonusPaymentService
      * - Для договоров: договор выполнен И оплачен партнёром
      * - Для заказов: заказ доставлен
      *
-     * @param int $userId
-     * @param string|null $recipientType Тип получателя (agent, curator). Если null - все типы.
+     * @param  string|null  $recipientType  Тип получателя (agent, curator). Если null - все типы.
+     * @param  bool  $lockForUpdate  Lock selected bonus rows while reserving them.
      * @return Collection<Bonus>
      */
-    public function getAvailableBonuses(int $userId, ?string $recipientType = null): Collection
-    {
+    public function getAvailableBonuses(
+        int $userId,
+        ?string $recipientType = null,
+        bool $lockForUpdate = false
+    ): Collection {
         $query = Bonus::where('user_id', $userId)
             ->whereNull('paid_at')
+            ->whereDoesntHave('paymentRequestLinks')
             ->where('commission_amount', '>', 0);
 
-        // Фильтруем по типу получателя если указан
-        if ($recipientType !== null) {
+        // Agent withdrawals include regular and referral bonuses, while curator
+        // withdrawals remain isolated from both of those balances.
+        if ($recipientType === BonusPaymentRequest::REQUESTER_AGENT) {
+            $query->whereIn('recipient_type', ['agent', 'referrer']);
+        } elseif ($recipientType !== null) {
             $query->where('recipient_type', $recipientType);
+        }
+
+        if ($lockForUpdate) {
+            $query->lockForUpdate();
         }
 
         return $query->with(['contract.status', 'contract.partnerPaymentStatus', 'order.status'])
@@ -57,9 +68,6 @@ class BonusPaymentService
 
     /**
      * Проверить, доступен ли бонус для выплаты.
-     *
-     * @param Bonus $bonus
-     * @return bool
      */
     public function isBonusAvailableForPayment(Bonus $bonus): bool
     {
@@ -90,13 +98,14 @@ class BonusPaymentService
     /**
      * Рассчитать общую сумму доступных бонусов пользователя.
      *
-     * @param int $userId
-     * @param string|null $recipientType Тип получателя (agent, curator). Если null - все типы.
-     * @return float
+     * @param  string|null  $recipientType  Тип получателя (agent, curator). Если null - все типы.
      */
-    public function calculateAvailableBalance(int $userId, ?string $recipientType = null): float
-    {
-        $availableBonuses = $this->getAvailableBonuses($userId, $recipientType);
+    public function calculateAvailableBalance(
+        int $userId,
+        ?string $recipientType = null,
+        bool $lockForUpdate = false
+    ): float {
+        $availableBonuses = $this->getAvailableBonuses($userId, $recipientType, $lockForUpdate);
 
         return $availableBonuses->sum(function (Bonus $bonus) {
             return (float) $bonus->commission_amount;
@@ -109,10 +118,7 @@ class BonusPaymentService
      * Использует алгоритм FIFO по дате начисления (accrued_at).
      * Каждый бонус покрывается полностью или частично.
      *
-     * @param BonusPaymentRequest $request
-     * @param int $userId
-     * @param float $amount
-     * @param string|null $recipientType Тип получателя (agent, curator). Если null - все типы.
+     * @param  string|null  $recipientType  Тип получателя (agent, curator). Если null - все типы.
      * @return array Массив связанных бонусов с информацией о покрытии
      */
     public function linkBonusesToPaymentRequest(
@@ -121,7 +127,7 @@ class BonusPaymentService
         float $amount,
         ?string $recipientType = null
     ): array {
-        $availableBonuses = $this->getAvailableBonuses($userId, $recipientType);
+        $availableBonuses = $this->getAvailableBonuses($userId, $recipientType, true);
         $remainingAmount = $amount;
         $linkedBonuses = [];
 
@@ -149,9 +155,12 @@ class BonusPaymentService
             $remainingAmount -= $coveredAmount;
         }
 
+        if (round($remainingAmount, 2) > 0) {
+            throw new \DomainException('Недостаточно доступных бонусов для резервирования выплаты');
+        }
+
         return $linkedBonuses;
     }
-
 
     /**
      * Погасить бонусы при выплате заявки.
@@ -159,9 +168,6 @@ class BonusPaymentService
      * Вызывается при переходе статуса заявки в "paid".
      * - Полностью покрытые бонусы: статус = paid, paid_at = now
      * - Частично покрытые бонусы: разделяются на два
-     *
-     * @param BonusPaymentRequest $request
-     * @return void
      */
     public function settleBonuses(BonusPaymentRequest $request): void
     {
@@ -213,16 +219,12 @@ class BonusPaymentService
         });
     }
 
-
     /**
      * Откатить погашение бонусов.
      *
      * Вызывается при откате статуса заявки из "paid".
      * - Восстанавливает статус бонусов в pending
      * - Объединяет разделённые бонусы обратно
-     *
-     * @param BonusPaymentRequest $request
-     * @return void
      */
     public function rollbackSettlement(BonusPaymentRequest $request): void
     {
@@ -263,9 +265,6 @@ class BonusPaymentService
 
     /**
      * Найти остаточный бонус, созданный при частичном покрытии.
-     *
-     * @param Bonus $originalBonus
-     * @return Bonus|null
      */
     private function findRemainderBonus(Bonus $originalBonus): ?Bonus
     {
@@ -311,9 +310,6 @@ class BonusPaymentService
 
     /**
      * Проверить, была ли заявка уже выплачена (бонусы погашены).
-     *
-     * @param BonusPaymentRequest $request
-     * @return bool
      */
     public function isSettled(BonusPaymentRequest $request): bool
     {

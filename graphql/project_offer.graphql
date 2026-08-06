@@ -35,7 +35,7 @@ input UpdateProjectOfferInput {
     order: Int
 }
 
-extend type Query {
+extend type Query @staff {
     "Get all offers for a project"
     projectOffers(project_id: ID! @where): [ProjectOffer!]! @all
 
@@ -43,7 +43,7 @@ extend type Query {
     projectOffer(id: ID! @whereKey): ProjectOffer @find
 }
 
-extend type Mutation {
+extend type Mutation @staff {
     "Upload a new offer for a project"
     uploadProjectOffer(project_id: ID!, file: Upload!): ProjectOffer!
 

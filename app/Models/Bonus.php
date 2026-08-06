@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
  * Единая модель бонуса.
@@ -19,11 +20,14 @@ class Bonus extends Model
 
     // Типы получателей
     const RECIPIENT_AGENT = 'agent';
+
     const RECIPIENT_CURATOR = 'curator';
+
     const RECIPIENT_REFERRER = 'referrer';
 
     // Типы бонусов (legacy, для совместимости)
     const BONUS_TYPE_AGENT = 'agent';
+
     const BONUS_TYPE_REFERRAL = 'referral';
 
     protected $table = 'bonuses';
@@ -80,6 +84,7 @@ class Bonus extends Model
 
     /**
      * Alias для backward compatibility.
+     *
      * @deprecated Use user() instead
      */
     public function agent(): BelongsTo
@@ -133,6 +138,14 @@ class Bonus extends Model
         );
     }
 
+    /**
+     * Payment requests currently reserving this bonus.
+     */
+    public function paymentRequestLinks(): HasMany
+    {
+        return $this->hasMany(BonusPaymentRequestBonus::class, 'bonus_id');
+    }
+
     // ==================== Scopes ====================
 
     /**
@@ -149,7 +162,7 @@ class Bonus extends Model
     public function scopeForAgent($query, int $userId)
     {
         return $query->where('user_id', $userId)
-                     ->where('recipient_type', self::RECIPIENT_AGENT);
+            ->where('recipient_type', self::RECIPIENT_AGENT);
     }
 
     /**
@@ -158,7 +171,7 @@ class Bonus extends Model
     public function scopeForCurator($query, int $userId)
     {
         return $query->where('user_id', $userId)
-                     ->where('recipient_type', self::RECIPIENT_CURATOR);
+            ->where('recipient_type', self::RECIPIENT_CURATOR);
     }
 
     /**
@@ -167,7 +180,7 @@ class Bonus extends Model
     public function scopeForReferrer($query, int $userId)
     {
         return $query->where('user_id', $userId)
-                     ->where('recipient_type', self::RECIPIENT_REFERRER);
+            ->where('recipient_type', self::RECIPIENT_REFERRER);
     }
 
     /**
@@ -241,6 +254,7 @@ class Bonus extends Model
         if ($this->order_id && $this->order) {
             return (float) ($this->order->order_amount ?? 0);
         }
+
         return 0.0;
     }
 
@@ -255,6 +269,7 @@ class Bonus extends Model
         if ($this->order_id && $this->order && $this->order->project) {
             return $this->order->project->value;
         }
+
         return null;
     }
 
@@ -266,6 +281,7 @@ class Bonus extends Model
         if ($this->contract_id && $this->contract) {
             return $this->contract->contract_number;
         }
+
         return null;
     }
 
@@ -277,6 +293,7 @@ class Bonus extends Model
         if ($this->order_id && $this->order) {
             return $this->order->order_number;
         }
+
         return null;
     }
 
@@ -311,19 +328,19 @@ class Bonus extends Model
      */
     public function getIsContractCompletedAttribute(): ?bool
     {
-        if (!$this->contract_id) {
+        if (! $this->contract_id) {
             return null;
         }
 
-        if (!$this->relationLoaded('contract')) {
+        if (! $this->relationLoaded('contract')) {
             $this->load('contract.status');
         }
 
-        if (!$this->contract) {
+        if (! $this->contract) {
             return false;
         }
 
-        if (!$this->contract->relationLoaded('status')) {
+        if (! $this->contract->relationLoaded('status')) {
             $this->contract->load('status');
         }
 
@@ -336,19 +353,19 @@ class Bonus extends Model
      */
     public function getIsPartnerPaidAttribute(): ?bool
     {
-        if (!$this->contract_id) {
+        if (! $this->contract_id) {
             return null;
         }
 
-        if (!$this->relationLoaded('contract')) {
+        if (! $this->relationLoaded('contract')) {
             $this->load('contract.partnerPaymentStatus');
         }
 
-        if (!$this->contract) {
+        if (! $this->contract) {
             return false;
         }
 
-        if (!$this->contract->relationLoaded('partnerPaymentStatus')) {
+        if (! $this->contract->relationLoaded('partnerPaymentStatus')) {
             $this->contract->load('partnerPaymentStatus');
         }
 
