@@ -216,11 +216,11 @@ extend type Query {
 
     "Получить все бонусы для админки"
     adminBonuses(filters: AgentBonusFilters): [AgentBonus!]!
-        @field(resolver: "App\\GraphQL\\Queries\\AdminBonusesQuery") @staff(roles: ["admin"])
+        @field(resolver: "App\\GraphQL\\Queries\\AdminBonusesQuery") @staff(roles: ["admin", "curator"])
 
     "Получить статистику бонусов для админки"
     adminBonusStats(filters: AgentBonusFilters): AdminBonusStats!
-        @field(resolver: "App\\GraphQL\\Queries\\AdminBonusStatsQuery") @staff(roles: ["admin"])
+        @field(resolver: "App\\GraphQL\\Queries\\AdminBonusStatsQuery") @staff(roles: ["admin", "curator"])
 }
 
 extend type Mutation @staff(roles: ["admin"]) {

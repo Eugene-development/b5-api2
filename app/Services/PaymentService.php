@@ -1,172 +1,91 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Services;
 
-use App\Models\Bonus;
 use App\Models\AgentPayment;
+use App\Models\Bonus;
 use App\Models\BonusStatus;
 use App\Models\PaymentStatus;
-use Illuminate\Support\Facades\DB;
 
-/**
- * Сервис для управления выплатами.
- *
- * Управляет созданием выплат и обновлением статусов бонусов:
- * - Создание выплаты с группировкой бонусов
- * - Завершение выплаты (обновление статусов бонусов на "paid")
- * - Откат при ошибке выплаты
- */
 class PaymentService
 {
-    /**
-     * Рассчитать общую сумму выплаты.
-     *
-     * @param array $bonuses Массив Bonus или массив ID бонусов
-     * @return float
-     */
     public function calculatePaymentTotal(array $bonuses): float
     {
-        $total = 0.0;
+        return array_sum(array_map(function ($bonus) {
+            $bonus = $bonus instanceof Bonus ? $bonus : Bonus::find($bonus);
 
-        foreach ($bonuses as $bonus) {
-            if ($bonus instanceof Bonus) {
-                $total += (float) $bonus->commission_amount;
-            } elseif (is_numeric($bonus)) {
-                $bonusModel = Bonus::find($bonus);
-                if ($bonusModel) {
-                    $total += (float) $bonusModel->commission_amount;
-                }
-            }
-        }
-
-        return round($total, 2);
+            return $bonus ? FinancialLedger::cents($bonus->commission_amount) : 0;
+        }, $bonuses)) / 100;
     }
 
-    /**
-     * Создать выплату пользователю.
-     *
-     * @param int $userId ID пользователя
-     * @param array $bonusIds Массив ID бонусов для включения в выплату
-     * @param int $methodId ID способа выплаты
-     * @param string|null $referenceNumber Номер платёжного документа
-     * @return AgentPayment
-     * @throws \InvalidArgumentException
-     */
-    public function createPayment(
-        int $userId,
-        array $bonusIds,
-        int $methodId,
-        ?string $referenceNumber = null
-    ): AgentPayment {
-        if (empty($bonusIds)) {
-            throw new \InvalidArgumentException('Выберите хотя бы один бонус для выплаты');
-        }
-
-
-        // Проверяем, что все бонусы принадлежат пользователю и доступны к выплате
-        $bonuses = Bonus::whereIn('id', $bonusIds)
-            ->where('user_id', $userId)
-            ->get();
-
-        if ($bonuses->count() !== count($bonusIds)) {
-            throw new \InvalidArgumentException('Некоторые бонусы не найдены или не принадлежат пользователю');
-        }
-
-        $pendingStatusId = BonusStatus::pendingId();
-        foreach ($bonuses as $bonus) {
-            if ($bonus->status_id !== $pendingStatusId) {
-                throw new \InvalidArgumentException(
-                    "Бонус #{$bonus->id} не в статусе 'Ожидание'"
-                );
+    public function createPayment(int $userId, array $bonusIds, int $methodId, ?string $referenceNumber = null): AgentPayment
+    {
+        return FinancialLedger::transaction(function () use ($userId, $bonusIds, $methodId, $referenceNumber) {
+            $available = app(BonusPaymentService::class)->getAvailableBonuses($userId, 'agent', true)->whereIn('id', $bonusIds);
+            if (empty($bonusIds) || $available->count() !== count($bonusIds)) {
+                throw new \InvalidArgumentException('Некоторые бонусы недоступны, уже зарезервированы или выплачены.');
             }
-        }
-
-        // Рассчитываем общую сумму
-        $totalAmount = $this->calculatePaymentTotal($bonuses->all());
-
-        return DB::transaction(function () use ($userId, $bonuses, $methodId, $referenceNumber, $totalAmount) {
-            // Создаём выплату
-            $payment = AgentPayment::create([
-                'agent_id' => $userId,
-                'total_amount' => $totalAmount,
-                'payment_date' => now(),
-                'reference_number' => $referenceNumber,
-                'status_id' => PaymentStatus::pendingId(),
-                'method_id' => $methodId,
-            ]);
-
-            // Связываем бонусы с выплатой
-            $payment->bonuses()->attach($bonuses->pluck('id'));
+            $payment = AgentPayment::create(['agent_id' => $userId, 'total_amount' => $this->calculatePaymentTotal($available->all()),
+                'payment_date' => now(), 'reference_number' => $referenceNumber, 'status_id' => PaymentStatus::pendingId(), 'method_id' => $methodId]);
+            $payment->bonuses()->attach($available->pluck('id'));
 
             return $payment;
         });
     }
 
-    /**
-     * Завершить выплату (статус = completed).
-     * Обновляет статусы всех связанных бонусов на "paid".
-     *
-     * @param AgentPayment $payment
-     * @return AgentPayment
-     */
     public function completePayment(AgentPayment $payment): AgentPayment
     {
-        return DB::transaction(function () use ($payment) {
-            // Обновляем статус выплаты
-            $payment->status_id = PaymentStatus::completedId();
-            $payment->save();
-
-            // Обновляем статусы всех связанных бонусов
-            $paidStatusId = BonusStatus::paidId();
-            foreach ($payment->bonuses as $bonus) {
-                $bonus->status_id = $paidStatusId;
-                $bonus->paid_at = now();
-                $bonus->save();
+        return FinancialLedger::transaction(function () use ($payment) {
+            $payment = AgentPayment::with('status')->lockForUpdate()->findOrFail($payment->id);
+            if ($payment->status->code === 'completed') {
+                return $payment;
             }
+            if ($payment->status->code !== 'pending') {
+                throw new \App\Exceptions\FinancialException('После отмены создайте новую выплату.');
+            }
+            $bonuses = $payment->bonuses()->get();
+            if ($bonuses->isEmpty() || FinancialLedger::cents($this->calculatePaymentTotal($bonuses->all())) !== FinancialLedger::cents($payment->total_amount)) {
+                throw new \App\Exceptions\FinancialException('Сумма выплаты не обеспечена бонусами.');
+            }
+            foreach ($bonuses as $bonus) {
+                if ((int) $bonus->user_id !== (int) $payment->agent_id || ! app(BonusPaymentService::class)->isBonusAvailableForPayment($bonus)
+                    || $bonus->paymentRequestLinks()->exists()
+                    || $bonus->payments()->where('agent_payments.id', '!=', $payment->id)->whereHas('status', fn ($q) => $q->whereIn('code', ['pending', 'completed']))->exists()) {
+                    throw new \App\Exceptions\FinancialException('Бонус больше не доступен для этой выплаты.');
+                }
+                $bonus->update(['status_id' => BonusStatus::paidId(), 'paid_at' => now()]);
+            }
+            $payment->update(['status_id' => PaymentStatus::completedId(), 'payment_date' => now()]);
 
-            return $payment;
+            return $payment->fresh(['status', 'bonuses']);
         });
     }
 
-
-    /**
-     * Отметить выплату как неудачную (статус = failed).
-     * Откатывает статусы всех связанных бонусов на "pending".
-     *
-     * @param AgentPayment $payment
-     * @return AgentPayment
-     */
     public function failPayment(AgentPayment $payment): AgentPayment
     {
-        return DB::transaction(function () use ($payment) {
-            // Обновляем статус выплаты
-            $payment->status_id = PaymentStatus::failedId();
-            $payment->save();
-
-            // Откатываем статусы всех связанных бонусов
-            $pendingStatusId = BonusStatus::pendingId();
-            foreach ($payment->bonuses as $bonus) {
-                $bonus->status_id = $pendingStatusId;
-                $bonus->paid_at = null;
-                $bonus->save();
+        return FinancialLedger::transaction(function () use ($payment) {
+            $payment = AgentPayment::with('status')->lockForUpdate()->findOrFail($payment->id);
+            if ($payment->status->code === 'failed') {
+                return $payment;
             }
+            if ($payment->status->code === 'completed') {
+                foreach ($payment->bonuses()->get() as $bonus) {
+                    if ($bonus->paymentRequestLinks()->exists() || $bonus->payments()->where('agent_payments.id', '!=', $payment->id)->whereHas('status', fn ($q) => $q->whereIn('code', ['pending', 'completed']))->exists()) {
+                        throw new \App\Exceptions\FinancialException('Бонус связан с другой выплатой.');
+                    }
+                    $bonus->update(['status_id' => BonusStatus::pendingId(), 'paid_at' => null]);
+                }
+            }
+            $payment->update(['status_id' => PaymentStatus::failedId()]);
 
-            return $payment;
+            return $payment->fresh(['status', 'bonuses']);
         });
     }
 
-    /**
-     * Получить доступные к выплате бонусы пользователя.
-     *
-     * @param int $userId
-     * @return \Illuminate\Database\Eloquent\Collection
-     */
     public function getAvailableBonusesForAgent(int $userId)
     {
-        return Bonus::where('user_id', $userId)
-            ->where('status_id', BonusStatus::pendingId())
-            ->with(['contract', 'order', 'status'])
-            ->orderBy('accrued_at', 'desc')
-            ->get();
+        return app(BonusPaymentService::class)->getAvailableBonuses($userId, 'agent');
     }
 }

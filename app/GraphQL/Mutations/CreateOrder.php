@@ -7,16 +7,13 @@ namespace App\GraphQL\Mutations;
 use App\Models\Order;
 use App\Models\OrderPosition;
 use App\Models\OrderStatus;
-use App\Services\BonusService;
 use GraphQL\Error\Error;
-use Illuminate\Support\Facades\DB;
 
 final readonly class CreateOrder
 {
     /**
      * Create a new order with positions
      *
-     * @param  null  $_
      * @param  array{input: array{
      *     value: string,
      *     company_id: string,
@@ -41,7 +38,6 @@ final readonly class CreateOrder
      *         is_urgent?: bool
      *     }>
      * }}  $args
-     * @return Order
      */
     public function __invoke(null $_, array $args): Order
     {
@@ -53,7 +49,7 @@ final readonly class CreateOrder
         }
 
         // Check if order number already exists (only if provided)
-        if (!empty($input['order_number'])) {
+        if (! empty($input['order_number'])) {
             $existingOrder = Order::where('order_number', $input['order_number'])->first();
             if ($existingOrder) {
                 throw new Error('Order with this order number already exists');
@@ -61,10 +57,10 @@ final readonly class CreateOrder
         }
 
         // Use transaction to ensure data consistency
-        return DB::transaction(function () use ($input) {
+        return \App\Services\FinancialLedger::transaction(function () use ($input) {
             // Calculate order_amount from positions if not provided
             $orderAmount = $input['order_amount'] ?? null;
-            if ($orderAmount === null && !empty($input['positions'])) {
+            if ($orderAmount === null && ! empty($input['positions'])) {
                 $orderAmount = 0;
                 foreach ($input['positions'] as $positionData) {
                     $price = floatval($positionData['price'] ?? 0);
@@ -84,14 +80,14 @@ final readonly class CreateOrder
             ]);
 
             // If no default status found, get the first active status or create error
-            if (!$defaultStatus) {
+            if (! $defaultStatus) {
                 \Log::warning('CreateOrder: No default status found, trying first active');
 
                 $defaultStatus = OrderStatus::where('is_active', true)
                     ->orderBy('sort_order')
                     ->first();
 
-                if (!$defaultStatus) {
+                if (! $defaultStatus) {
                     \Log::error('CreateOrder: No active order status found in the system');
                     throw new Error('No active order status found in the system');
                 }

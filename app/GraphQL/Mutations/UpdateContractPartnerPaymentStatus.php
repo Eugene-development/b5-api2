@@ -8,7 +8,6 @@ use App\Models\Contract;
 use App\Models\PartnerPaymentStatus;
 use App\Services\BonusService;
 use GraphQL\Error\Error;
-use Illuminate\Support\Facades\DB;
 
 final readonly class UpdateContractPartnerPaymentStatus
 {
@@ -19,10 +18,6 @@ final readonly class UpdateContractPartnerPaymentStatus
      * Бонус становится доступным только если выполнены ОБА условия:
      * - is_contract_completed: статус договора = 'completed' (Выполнен)
      * - is_partner_paid: статус оплаты партнёром = 'paid' (Оплачено)
-     *
-     * @param  null  $_
-     * @param  array  $args
-     * @return Contract
      */
     public function __invoke(null $_, array $args): Contract
     {
@@ -30,11 +25,11 @@ final readonly class UpdateContractPartnerPaymentStatus
         $statusCode = $args['status_code'];
 
         $status = PartnerPaymentStatus::findByCode($statusCode);
-        if (!$status) {
+        if (! $status) {
             throw new Error("Неизвестный статус: {$statusCode}");
         }
 
-        return DB::transaction(function () use ($contractId, $status, $statusCode) {
+        return \App\Services\FinancialLedger::transaction(function () use ($contractId, $status, $statusCode) {
             $contract = Contract::with(['status', 'partnerPaymentStatus', 'agentBonus'])
                 ->findOrFail($contractId);
             $contract->partner_payment_status_id = $status->id;
@@ -48,6 +43,7 @@ final readonly class UpdateContractPartnerPaymentStatus
             }
 
             $contract->save();
+            $contract->refresh();
 
             // Обновляем статус бонуса на основе двух условий:
             // is_contract_completed И is_partner_paid

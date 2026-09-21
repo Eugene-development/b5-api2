@@ -20,51 +20,52 @@ final readonly class UpdateBonusStatus
      * - Если статус меняется НЕ на 'paid', paid_at очищается
      * - При возврате с 'paid' на другой статус (кроме pending), проверяются условия доступности
      *   и available_at восстанавливается если условия выполнены
-     *
-     * @param  null  $_
-     * @param  array  $args
-     * @return Bonus
      */
     public function __invoke(null $_, array $args): Bonus
     {
-        $bonus = Bonus::with(['contract.status', 'contract.partnerPaymentStatus', 'order.status'])->findOrFail($args['bonus_id']);
-        $status = BonusStatus::where('code', $args['status_code'])->firstOrFail();
+        return \App\Services\FinancialLedger::transaction(function () use ($args) {
+            $bonus = Bonus::with(['contract.status', 'contract.partnerPaymentStatus', 'order.status'])->findOrFail($args['bonus_id']);
+            if (\App\Services\FinancialLedger::reserved($bonus) || $bonus->paid_at !== null || $args['status_code'] === 'paid') {
+                throw new \App\Exceptions\FinancialException('Меняйте погашение через связанную выплату, а не статус бонуса.');
+            }
+            $status = BonusStatus::where('code', $args['status_code'])->firstOrFail();
 
-        $bonus->status_id = $status->id;
+            $bonus->status_id = $status->id;
 
-        // Set paid_at date when status changes to paid
-        if ($args['status_code'] === 'paid' && !$bonus->paid_at) {
-            $bonus->paid_at = Carbon::now();
-        }
+            // Set paid_at date when status changes to paid
+            if ($args['status_code'] === 'paid' && ! $bonus->paid_at) {
+                $bonus->paid_at = Carbon::now();
+            }
 
-        // Set available_at date when status changes to available_for_payment
-        if ($args['status_code'] === 'available_for_payment' && !$bonus->available_at) {
-            $bonus->available_at = Carbon::now();
-        }
+            // Set available_at date when status changes to available_for_payment
+            if ($args['status_code'] === 'available_for_payment' && ! $bonus->available_at) {
+                $bonus->available_at = Carbon::now();
+            }
 
-        // Clear available_at if status changes to pending
-        if ($args['status_code'] === 'pending') {
-            $bonus->available_at = null;
-        }
+            // Clear available_at if status changes to pending
+            if ($args['status_code'] === 'pending') {
+                $bonus->available_at = null;
+            }
 
-        // Clear paid_at if status is not paid
-        if ($args['status_code'] !== 'paid') {
-            $bonus->paid_at = null;
+            // Clear paid_at if status is not paid
+            if ($args['status_code'] !== 'paid') {
+                $bonus->paid_at = null;
 
-            // При возврате с 'paid' на другой статус (кроме pending), проверяем условия доступности
-            // и восстанавливаем available_at если условия выполнены
-            if ($args['status_code'] !== 'pending' && $bonus->available_at === null) {
-                $shouldBeAvailable = $this->checkBonusAvailabilityConditions($bonus);
-                if ($shouldBeAvailable) {
-                    $bonus->available_at = Carbon::now();
+                // При возврате с 'paid' на другой статус (кроме pending), проверяем условия доступности
+                // и восстанавливаем available_at если условия выполнены
+                if ($args['status_code'] !== 'pending' && $bonus->available_at === null) {
+                    $shouldBeAvailable = $this->checkBonusAvailabilityConditions($bonus);
+                    if ($shouldBeAvailable) {
+                        $bonus->available_at = Carbon::now();
+                    }
                 }
             }
-        }
 
-        $bonus->save();
-        $bonus->load('status');
+            $bonus->save();
+            $bonus->load('status');
 
-        return $bonus;
+            return $bonus;
+        });
     }
 
     /**
@@ -72,9 +73,6 @@ final readonly class UpdateBonusStatus
      *
      * Для договоров: статус договора = 'completed' И статус оплаты партнёром = 'paid' И договор активен
      * Для заказов: статус заказа = 'delivered' И заказ активен
-     *
-     * @param Bonus $bonus
-     * @return bool
      */
     private function checkBonusAvailabilityConditions(Bonus $bonus): bool
     {

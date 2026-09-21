@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Services;
 
 use App\Models\Bonus;
@@ -7,321 +9,134 @@ use App\Models\BonusPaymentRequest;
 use App\Models\BonusPaymentRequestBonus;
 use App\Models\BonusStatus;
 use Illuminate\Database\Eloquent\Collection;
-use Illuminate\Support\Facades\DB;
 
-/**
- * Сервис для управления связью заявок на выплату с бонусами.
- *
- * Реализует:
- * - Связывание бонусов с заявкой по FIFO (по дате начисления)
- * - Автоматическое погашение бонусов при выплате
- * - Откат погашения при смене статуса
- *
- * Feature: bonus-payments
- * Requirements: 8.3, 8.4, 8.5, 9.1, 9.2, 9.3, 9.4, 10.1, 10.2, 10.3, 10.4, 10.5, 11.1, 11.3
- */
 class BonusPaymentService
 {
-    /**
-     * Получить доступные бонусы пользователя для выплаты.
-     *
-     * Возвращает бонусы, отсортированные по дате начисления (FIFO).
-     * Бонус доступен если:
-     * - paid_at IS NULL (не выплачен)
-     * - Для договоров: договор выполнен И оплачен партнёром
-     * - Для заказов: заказ доставлен
-     *
-     * @param  string|null  $recipientType  Тип получателя (agent, curator). Если null - все типы.
-     * @param  bool  $lockForUpdate  Lock selected bonus rows while reserving them.
-     * @return Collection<Bonus>
-     */
-    public function getAvailableBonuses(
-        int $userId,
-        ?string $recipientType = null,
-        bool $lockForUpdate = false
-    ): Collection {
-        $query = Bonus::where('user_id', $userId)
-            ->whereNull('paid_at')
+    public function getAvailableBonuses(int $userId, ?string $recipientType = null, bool $lockForUpdate = false): Collection
+    {
+        $query = Bonus::where('user_id', $userId)->whereNull('paid_at')
             ->whereDoesntHave('paymentRequestLinks')
+            ->whereDoesntHave('payments', fn ($q) => $q->whereHas('status', fn ($s) => $s->whereIn('code', ['pending', 'completed'])))
             ->where('commission_amount', '>', 0);
-
-        // Agent withdrawals include regular and referral bonuses, while curator
-        // withdrawals remain isolated from both of those balances.
-        if ($recipientType === BonusPaymentRequest::REQUESTER_AGENT) {
+        if ($recipientType === 'agent') {
             $query->whereIn('recipient_type', ['agent', 'referrer']);
         } elseif ($recipientType !== null) {
             $query->where('recipient_type', $recipientType);
         }
-
         if ($lockForUpdate) {
             $query->lockForUpdate();
         }
 
-        return $query->with(['contract.status', 'contract.partnerPaymentStatus', 'order.status'])
-            ->orderBy('accrued_at', 'asc')
-            ->get()
-            ->filter(function (Bonus $bonus) {
-                return $this->isBonusAvailableForPayment($bonus);
-            })
-            ->values();
+        return $query->with(['status', 'contract.status', 'contract.partnerPaymentStatus', 'contract.project.status', 'order.status', 'order.project.status'])
+            ->orderBy('accrued_at')->orderBy('id')->get()
+            ->filter(fn (Bonus $bonus) => $this->isBonusAvailableForPayment($bonus))->values();
     }
 
-    /**
-     * Проверить, доступен ли бонус для выплаты.
-     */
+    /** Eligibility of the source; reservations are checked separately. */
     public function isBonusAvailableForPayment(Bonus $bonus): bool
     {
-        if ($bonus->paid_at !== null) {
+        if ($bonus->paid_at !== null || FinancialLedger::cents($bonus->commission_amount) <= 0 || $bonus->status?->code === 'cancelled') {
+            return false;
+        }
+        $source = $bonus->contract_id ? $bonus->contract : $bonus->order;
+        if (! $source || ! $source->is_active || ! $source->project?->is_active || $source->project->status?->slug === 'client-refused') {
             return false;
         }
 
-        if ($bonus->contract_id && $bonus->contract) {
-            $contract = $bonus->contract;
-            $isContractCompleted = $contract->status && $contract->status->slug === 'completed';
-            $isPartnerPaid = $contract->partnerPaymentStatus && $contract->partnerPaymentStatus->code === 'paid';
-            $isContractActive = $contract->is_active === true;
-
-            return $isContractCompleted && $isPartnerPaid && $isContractActive;
-        }
-
-        if ($bonus->order_id && $bonus->order) {
-            $order = $bonus->order;
-            $isOrderDelivered = $order->status && $order->status->slug === 'delivered';
-            $isOrderActive = $order->is_active === true;
-
-            return $isOrderDelivered && $isOrderActive;
-        }
-
-        return false;
+        return $bonus->contract_id
+            ? $source->status?->slug === 'completed' && $source->partnerPaymentStatus?->code === 'paid'
+            : $source->status?->slug === 'delivered';
     }
 
-    /**
-     * Рассчитать общую сумму доступных бонусов пользователя.
-     *
-     * @param  string|null  $recipientType  Тип получателя (agent, curator). Если null - все типы.
-     */
-    public function calculateAvailableBalance(
-        int $userId,
-        ?string $recipientType = null,
-        bool $lockForUpdate = false
-    ): float {
-        $availableBonuses = $this->getAvailableBonuses($userId, $recipientType, $lockForUpdate);
+    public function calculateAvailableBalance(int $userId, ?string $recipientType = null, bool $lockForUpdate = false): float
+    {
+        return $this->getAvailableBonuses($userId, $recipientType, $lockForUpdate)
+            ->sum(fn ($bonus) => FinancialLedger::cents($bonus->commission_amount)) / 100;
+    }
 
-        return $availableBonuses->sum(function (Bonus $bonus) {
-            return (float) $bonus->commission_amount;
+    /** Split before reserving: each reserved row represents its exact amount. */
+    private function split(Bonus $bonus, int $covered): void
+    {
+        $remaining = FinancialLedger::cents($bonus->commission_amount) - $covered;
+        if ($remaining <= 0) {
+            return;
+        }
+        $remainder = $bonus->replicate();
+        $remainder->commission_amount = $remaining / 100;
+        $remainder->paid_at = null;
+        $remainder->status_id = BonusStatus::pendingId();
+        $remainder->save();
+        $bonus->commission_amount = $covered / 100;
+        $bonus->save();
+    }
+
+    public function linkBonusesToPaymentRequest(BonusPaymentRequest $request, int $userId, float $amount, ?string $recipientType = null): array
+    {
+        return FinancialLedger::transaction(function () use ($request, $userId, $amount, $recipientType) {
+            $remaining = FinancialLedger::cents($amount);
+            if ($remaining <= 0 || $request->linkedBonuses()->exists()) {
+                throw new \App\Exceptions\FinancialException('Некорректная сумма или заявка уже зарезервирована.');
+            }
+            $linked = [];
+            foreach ($this->getAvailableBonuses($userId, $recipientType, true) as $bonus) {
+                if ($remaining === 0) {
+                    break;
+                }
+                $covered = min(FinancialLedger::cents($bonus->commission_amount), $remaining);
+                $this->split($bonus, $covered);
+                BonusPaymentRequestBonus::create(['payment_request_id' => $request->id, 'bonus_id' => $bonus->id, 'covered_amount' => $covered / 100]);
+                $linked[] = ['bonus' => $bonus, 'covered_amount' => $covered / 100, 'is_fully_covered' => true];
+                $remaining -= $covered;
+            }
+            if ($remaining !== 0) {
+                throw new \App\Exceptions\FinancialException('Недостаточно доступных бонусов для резервирования выплаты');
+            }
+
+            return $linked;
         });
     }
 
-    /**
-     * Связать доступные бонусы с заявкой на выплату.
-     *
-     * Использует алгоритм FIFO по дате начисления (accrued_at).
-     * Каждый бонус покрывается полностью или частично.
-     *
-     * @param  string|null  $recipientType  Тип получателя (agent, curator). Если null - все типы.
-     * @return array Массив связанных бонусов с информацией о покрытии
-     */
-    public function linkBonusesToPaymentRequest(
-        BonusPaymentRequest $request,
-        int $userId,
-        float $amount,
-        ?string $recipientType = null
-    ): array {
-        $availableBonuses = $this->getAvailableBonuses($userId, $recipientType, true);
-        $remainingAmount = $amount;
-        $linkedBonuses = [];
-
-        foreach ($availableBonuses as $bonus) {
-            if ($remainingAmount <= 0) {
-                break;
-            }
-
-            $bonusAmount = (float) $bonus->commission_amount;
-            $coveredAmount = min($bonusAmount, $remainingAmount);
-
-            // Создаём связь
-            BonusPaymentRequestBonus::create([
-                'payment_request_id' => $request->id,
-                'bonus_id' => $bonus->id,
-                'covered_amount' => $coveredAmount,
-            ]);
-
-            $linkedBonuses[] = [
-                'bonus' => $bonus,
-                'covered_amount' => $coveredAmount,
-                'is_fully_covered' => $coveredAmount >= $bonusAmount,
-            ];
-
-            $remainingAmount -= $coveredAmount;
-        }
-
-        if (round($remainingAmount, 2) > 0) {
-            throw new \DomainException('Недостаточно доступных бонусов для резервирования выплаты');
-        }
-
-        return $linkedBonuses;
-    }
-
-    /**
-     * Погасить бонусы при выплате заявки.
-     *
-     * Вызывается при переходе статуса заявки в "paid".
-     * - Полностью покрытые бонусы: статус = paid, paid_at = now
-     * - Частично покрытые бонусы: разделяются на два
-     */
     public function settleBonuses(BonusPaymentRequest $request): void
     {
-        DB::transaction(function () use ($request) {
-            $linkedBonuses = $request->linkedBonuses()->with('bonus')->get();
-            $paidStatusId = BonusStatus::paidId();
-            $pendingStatusId = BonusStatus::pendingId();
-            $now = now();
-
-            foreach ($linkedBonuses as $link) {
-                $bonus = $link->bonus;
-                $coveredAmount = (float) $link->covered_amount;
-                $bonusAmount = (float) $bonus->commission_amount;
-
-                if ($coveredAmount >= $bonusAmount) {
-                    // Полное покрытие — просто обновляем статус
-                    $bonus->update([
-                        'status_id' => $paidStatusId,
-                        'paid_at' => $now,
-                    ]);
-                } else {
-                    // Частичное покрытие — разделяем бонус
-                    $remainingAmount = $bonusAmount - $coveredAmount;
-
-                    // Создаём новый бонус с остатком
-                    Bonus::create([
-                        'user_id' => $bonus->user_id,
-                        'contract_id' => $bonus->contract_id,
-                        'order_id' => $bonus->order_id,
-                        'commission_amount' => $remainingAmount,
-                        'percentage' => $bonus->percentage,
-                        'status_id' => $pendingStatusId,
-                        'recipient_type' => $bonus->recipient_type,
-                        'bonus_type' => $bonus->bonus_type,
-                        'referral_user_id' => $bonus->referral_user_id,
-                        'accrued_at' => $bonus->accrued_at,
-                        'available_at' => $bonus->available_at,
-                        'paid_at' => null,
-                    ]);
-
-                    // Обновляем оригинальный бонус
-                    $bonus->update([
-                        'commission_amount' => $coveredAmount,
-                        'status_id' => $paidStatusId,
-                        'paid_at' => $now,
-                    ]);
+        FinancialLedger::transaction(function () use ($request) {
+            $links = $request->linkedBonuses()->with('bonus')->get();
+            if ($links->isEmpty() || $links->sum(fn ($l) => FinancialLedger::cents($l->covered_amount)) !== FinancialLedger::cents($request->amount)) {
+                throw new \App\Exceptions\FinancialException('Сумма заявки не обеспечена бонусами.');
+            }
+            foreach ($links as $link) {
+                $bonus = $link->bonus?->fresh();
+                $covered = FinancialLedger::cents($link->covered_amount);
+                $allowedTypes = $request->requester_type === 'curator' ? ['curator'] : ['agent', 'referrer'];
+                if (! $bonus || (int) $bonus->user_id !== (int) $request->agent_id || ! in_array($bonus->recipient_type, $allowedTypes, true)
+                    || ! $this->isBonusAvailableForPayment($bonus) || $covered <= 0 || $covered > FinancialLedger::cents($bonus->commission_amount)
+                    || $bonus->payments()->whereHas('status', fn ($q) => $q->whereIn('code', ['pending', 'completed']))->exists()) {
+                    throw new \App\Exceptions\FinancialException('Бонус больше не доступен или сумма его покрытия изменилась.');
                 }
+                // Supports existing partial reservations created before this release.
+                $this->split($bonus, $covered);
+                $bonus->update(['status_id' => BonusStatus::paidId(), 'paid_at' => now()]);
             }
         });
     }
 
-    /**
-     * Откатить погашение бонусов.
-     *
-     * Вызывается при откате статуса заявки из "paid".
-     * - Восстанавливает статус бонусов в pending
-     * - Объединяет разделённые бонусы обратно
-     */
     public function rollbackSettlement(BonusPaymentRequest $request): void
     {
-        DB::transaction(function () use ($request) {
-            $linkedBonuses = $request->linkedBonuses()->with('bonus')->get();
-            $pendingStatusId = BonusStatus::pendingId();
-
-            foreach ($linkedBonuses as $link) {
+        FinancialLedger::transaction(function () use ($request) {
+            foreach ($request->linkedBonuses()->with('bonus')->get() as $link) {
                 $bonus = $link->bonus;
-                $coveredAmount = (float) $link->covered_amount;
-
-                // Ищем "остаточный" бонус, созданный при частичном покрытии
-                // Он имеет те же contract_id/order_id, тот же user_id, ту же дату начисления,
-                // но paid_at = NULL и был создан после оригинального бонуса
-                $remainderBonus = $this->findRemainderBonus($bonus);
-
-                if ($remainderBonus) {
-                    // Объединяем обратно
-                    $originalAmount = $coveredAmount + (float) $remainderBonus->commission_amount;
-                    $bonus->update([
-                        'commission_amount' => $originalAmount,
-                        'status_id' => $pendingStatusId,
-                        'paid_at' => null,
-                    ]);
-
-                    // Удаляем остаточный бонус
-                    $remainderBonus->delete();
-                } else {
-                    // Просто возвращаем статус
-                    $bonus->update([
-                        'status_id' => $pendingStatusId,
-                        'paid_at' => null,
-                    ]);
+                if (! $bonus || FinancialLedger::cents($bonus->commission_amount) !== FinancialLedger::cents($link->covered_amount)) {
+                    throw new \App\Exceptions\FinancialException('Нельзя откатить выплату с повреждённым покрытием.');
                 }
+                // Never merge fragments: another request may own any other fragment.
+                $bonus->update(['status_id' => BonusStatus::pendingId(), 'paid_at' => null]);
             }
         });
     }
 
-    /**
-     * Найти остаточный бонус, созданный при частичном покрытии.
-     */
-    private function findRemainderBonus(Bonus $originalBonus): ?Bonus
-    {
-        $query = Bonus::where('user_id', $originalBonus->user_id)
-            ->whereNull('paid_at')
-            ->where('id', '!=', $originalBonus->id);
-
-        // Ищем по тем же критериям источника
-        if ($originalBonus->contract_id) {
-            $query->where('contract_id', $originalBonus->contract_id);
-        } else {
-            $query->whereNull('contract_id');
-        }
-
-        if ($originalBonus->order_id) {
-            $query->where('order_id', $originalBonus->order_id);
-        } else {
-            $query->whereNull('order_id');
-        }
-
-        // Та же дата начисления
-        if ($originalBonus->accrued_at) {
-            $query->whereDate('accrued_at', $originalBonus->accrued_at->toDateString());
-        }
-
-        // Тот же тип бонуса
-        if ($originalBonus->bonus_type) {
-            $query->where('bonus_type', $originalBonus->bonus_type);
-        }
-
-        // Тот же реферал (если есть)
-        if ($originalBonus->referral_user_id) {
-            $query->where('referral_user_id', $originalBonus->referral_user_id);
-        } else {
-            $query->whereNull('referral_user_id');
-        }
-
-        // Берём бонус, созданный позже оригинального
-        return $query->where('created_at', '>', $originalBonus->created_at)
-            ->orderBy('created_at', 'asc')
-            ->first();
-    }
-
-    /**
-     * Проверить, была ли заявка уже выплачена (бонусы погашены).
-     */
     public function isSettled(BonusPaymentRequest $request): bool
     {
-        $linkedBonuses = $request->linkedBonuses()->with('bonus')->get();
+        $links = $request->linkedBonuses()->with('bonus')->get();
 
-        if ($linkedBonuses->isEmpty()) {
-            return false;
-        }
-
-        // Если хотя бы один связанный бонус имеет paid_at, считаем что заявка была выплачена
-        return $linkedBonuses->some(function ($link) {
-            return $link->bonus && $link->bonus->paid_at !== null;
-        });
+        return $links->isNotEmpty() && $links->every(fn ($l) => $l->bonus?->paid_at !== null);
     }
 }

@@ -1,55 +1,25 @@
 <?php
 
-declare(strict_types=1);
-
 namespace App\GraphQL\Queries;
 
-use App\Models\AgentBonus;
-use App\Models\BonusStatus;
+use App\Models\Bonus;
 use App\Models\User;
-use Illuminate\Support\Facades\DB;
+use App\Services\BonusPaymentService;
 
-final readonly class AgentsWithAvailableBonusesQuery
+final class AgentsWithAvailableBonusesQuery
 {
-    /**
-     * Get agents with available bonuses for payment.
-     *
-     * @param  null  $_
-     * @param  array  $args
-     * @return array
-     */
-    public function __invoke(null $_, array $args)
+    public function __invoke(null $_, array $args): array
     {
-        // Get the available_for_payment status
-        $availableStatus = BonusStatus::where('code', 'available_for_payment')->first();
-
-        if (!$availableStatus) {
-            return [];
+        $result = [];
+        $service = app(BonusPaymentService::class);
+        foreach (User::whereIn('id', Bonus::select('user_id')->whereNull('paid_at'))->get() as $user) {
+            $bonuses = $service->getAvailableBonuses($user->id, 'agent');
+            if ($bonuses->isNotEmpty()) {
+                $result[] = ['id' => $user->id, 'name' => $user->name, 'email' => $user->email,
+                    'available_bonuses_count' => $bonuses->count(), 'available_bonuses_total' => $service->calculateAvailableBalance($user->id, 'agent')];
+            }
         }
 
-        // Get agents with available bonuses
-        $agents = User::whereHas('agentBonuses', function ($query) use ($availableStatus) {
-            $query->where('status_id', $availableStatus->id)
-                  ->where('commission_amount', '>', 0);
-        })
-        ->withCount(['agentBonuses as available_bonuses_count' => function ($query) use ($availableStatus) {
-            $query->where('status_id', $availableStatus->id)
-                  ->where('commission_amount', '>', 0);
-        }])
-        ->withSum(['agentBonuses as available_bonuses_total' => function ($query) use ($availableStatus) {
-            $query->where('status_id', $availableStatus->id)
-                  ->where('commission_amount', '>', 0);
-        }], 'commission_amount')
-        ->get();
-
-        return $agents->map(function ($agent) {
-            return [
-                'id' => $agent->id,
-                'name' => $agent->name,
-                'email' => $agent->email,
-                'available_bonuses_count' => (int) ($agent->available_bonuses_count ?? 0),
-                'available_bonuses_total' => (float) ($agent->available_bonuses_total ?? 0),
-            ];
-        })->toArray();
+        return $result;
     }
 }

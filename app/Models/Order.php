@@ -12,7 +12,7 @@ use Illuminate\Database\Eloquent\Relations\MorphToMany;
 
 class Order extends Model
 {
-    use HasFactory, HasUlids;
+    use \App\Models\Concerns\HasFinancialTransactions, HasFactory, HasUlids;
 
     /**
      * Boot the model and add event listeners
@@ -20,6 +20,15 @@ class Order extends Model
     protected static function boot()
     {
         parent::boot();
+        static::saving(function ($source) {
+            if ($source->exists && $source->isDirty('project_id') && $source->bonuses()->exists()) {
+                throw new \App\Exceptions\FinancialException('Нельзя переносить источник с начисленными бонусами в другой проект.');
+            }
+        });
+        static::deleting(function ($source) {
+            \App\Services\FinancialLedger::assertUncommitted($source->bonuses());
+            $source->bonuses()->delete();
+        });
 
         static::creating(function ($order) {
             // Auto-generate order_number if not provided
@@ -29,10 +38,10 @@ class Order extends Model
 
             // Set default percentages for orders (5% each)
             // Применяем дефолт если не указан или равен 0
-            if (!isset($order->agent_percentage) || $order->agent_percentage == 0) {
+            if ($order->agent_percentage === null) {
                 $order->agent_percentage = 5.00;
             }
-            if (!isset($order->curator_percentage) || $order->curator_percentage == 0) {
+            if ($order->curator_percentage === null) {
                 $order->curator_percentage = 5.00;
             }
         });
@@ -69,17 +78,15 @@ class Order extends Model
 
     /**
      * Generate unique order number in format ORDER-ххххх-ххх
-     *
-     * @return string
      */
     public static function generateOrderNumber(): string
     {
         do {
             // Generate random 5-digit number
-            $firstPart = str_pad((string)rand(10000, 99999), 5, '0', STR_PAD_LEFT);
+            $firstPart = str_pad((string) rand(10000, 99999), 5, '0', STR_PAD_LEFT);
 
             // Generate random 3-digit number
-            $secondPart = str_pad((string)rand(100, 999), 3, '0', STR_PAD_LEFT);
+            $secondPart = str_pad((string) rand(100, 999), 3, '0', STR_PAD_LEFT);
 
             // Combine into ORDER-ххххх-ххх format
             $orderNumber = "ORDER-{$firstPart}-{$secondPart}";
@@ -226,6 +233,7 @@ class Order extends Model
 
     /**
      * Get all agent bonuses for this order (agent + referral).
+     *
      * @deprecated Use bonuses() instead
      */
     public function agentBonuses(): HasMany
@@ -244,38 +252,30 @@ class Order extends Model
     /**
      * Get the agent bonus amount (accessor for GraphQL).
      * Возвращает сумму бонуса агента из таблицы bonuses.
-     *
-     * @return float|null
      */
     public function getAgentBonusAttribute(): ?float
     {
-        $bonus = $this->getRelationValue('agentBonus');
-        return $bonus ? (float) $bonus->commission_amount : null;
+        return (float) $this->bonuses()->where('recipient_type', 'agent')->sum('commission_amount');
     }
 
     /**
      * Get the curator bonus amount (accessor for GraphQL).
      * Возвращает сумму бонуса куратора из таблицы bonuses.
-     *
-     * @return float|null
      */
     public function getCuratorBonusAttribute(): ?float
     {
-        $bonus = $this->getRelationValue('curatorBonus');
-        return $bonus ? (float) $bonus->commission_amount : null;
+        return (float) $this->bonuses()->where('recipient_type', 'curator')->sum('commission_amount');
     }
 
     /**
      * Get the order amount (accessor for GraphQL).
      * Если order_amount не задан, рассчитывает из суммы позиций.
-     *
-     * @return float|null
      */
     public function getOrderAmountAttribute(): ?float
     {
         // Если значение явно задано в БД, возвращаем его
-        $dbValue = $this->getRawOriginal('order_amount');
-        if ($dbValue !== null && (float) $dbValue > 0) {
+        $dbValue = $this->attributes['order_amount'] ?? null;
+        if ($dbValue !== null) {
             return (float) $dbValue;
         }
 

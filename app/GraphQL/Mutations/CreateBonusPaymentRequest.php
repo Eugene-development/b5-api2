@@ -9,7 +9,6 @@ use App\Models\BonusPaymentStatus;
 use App\Services\BonusPaymentService;
 use GraphQL\Error\Error;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\DB;
 
 /**
  * Мутация для создания заявки на выплату бонуса.
@@ -42,8 +41,8 @@ final readonly class CreateBonusPaymentRequest
 
         // Валидация суммы (Property 2: Amount Validation)
         $amount = (float) $input['amount'];
-        if ($amount <= 0) {
-            throw new Error('Сумма выплаты должна быть больше нуля');
+        if ($amount < 1000 || abs($amount * 100 - round($amount * 100)) > 0.00001) {
+            throw new Error('Минимальная сумма выплаты — 1 000 ₽, точность — до копеек');
         }
 
         $statusSlug = $user->status?->slug;
@@ -75,7 +74,7 @@ final readonly class CreateBonusPaymentRequest
         }
 
         // Создаём заявку и связываем бонусы в транзакции
-        $request = DB::transaction(function () use ($user, $amount, $paymentMethod, $input, $requestedStatus, $requesterType) {
+        $request = \App\Services\FinancialLedger::transaction(function () use ($user, $amount, $paymentMethod, $input, $requestedStatus, $requesterType) {
             // Balance validation and reservation must use the same transaction.
             // The selected bonus rows are locked until their links are written.
             $availableBalance = $this->bonusPaymentService->calculateAvailableBalance(

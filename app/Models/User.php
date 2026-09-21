@@ -8,7 +8,6 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Tymon\JWTAuth\Contracts\JWTSubject;
 
-
 class User extends Authenticatable implements JWTSubject
 {
     /** @use HasFactory<\Database\Factories\UserFactory> */
@@ -129,7 +128,7 @@ class User extends Authenticatable implements JWTSubject
      */
     public function agentBonuses(): \Illuminate\Database\Eloquent\Relations\HasMany
     {
-        return $this->hasMany(AgentBonus::class, 'agent_id');
+        return $this->hasMany(Bonus::class, 'user_id');
     }
 
     /**

@@ -50,8 +50,9 @@ class MigrateContractBonuses extends Command
 
         foreach ($contracts as $contract) {
             // Skip if bonus already exists (unless force flag is set)
-            if ($contract->agentBonus && !$force) {
+            if ($contract->getRelationValue('agentBonus') && ! $force) {
                 $contractsSkipped++;
+
                 continue;
             }
 
@@ -60,9 +61,6 @@ class MigrateContractBonuses extends Command
                 $contractsCreated++;
             } else {
                 // Delete existing bonus if force flag is set
-                if ($force && $contract->agentBonus) {
-                    $contract->agentBonus->delete();
-                }
 
                 $bonus = $bonusService->createBonusForContract($contract);
                 if ($bonus) {
@@ -87,8 +85,9 @@ class MigrateContractBonuses extends Command
 
         foreach ($orders as $order) {
             // Skip if bonus already exists (unless force flag is set)
-            if ($order->agentBonus && !$force) {
+            if ($order->getRelationValue('agentBonus') && ! $force) {
                 $ordersSkipped++;
+
                 continue;
             }
 
@@ -97,9 +96,6 @@ class MigrateContractBonuses extends Command
                 $ordersCreated++;
             } else {
                 // Delete existing bonus if force flag is set
-                if ($force && $order->agentBonus) {
-                    $order->agentBonus->delete();
-                }
 
                 $bonus = $bonusService->createBonusForOrder($order);
                 if ($bonus) {

@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace App\GraphQL\Queries;
 
-use App\Models\Bonus;
 use Illuminate\Support\Facades\Auth;
 
 final readonly class AgentBonusesQuery
@@ -12,80 +11,21 @@ final readonly class AgentBonusesQuery
     /**
      * Get bonuses for the authenticated user.
      *
-     * @param  null  $_
-     * @param  array  $args
      * @return \Illuminate\Database\Eloquent\Collection
      */
     public function __invoke(null $_, array $args)
     {
         $user = Auth::user();
-        if (!$user) {
+        if (! $user) {
             return collect([]);
         }
 
-        $query = Bonus::where('user_id', $user->id)
-            ->with(['status', 'contract', 'contract.status', 'contract.partnerPaymentStatus', 'order', 'referralUser']);
+        $filters = array_merge($args['filters'] ?? [], ['user_id' => $user->id]);
 
-        // Фильтруем бонусы: исключаем неактивные договоры и заказы
-        // Также исключаем договоры в статусе "Обработка" (preparing)
-        $query->where(function ($q) {
-            $q->whereHas('contract', function ($contractQuery) {
-                $contractQuery
-                    // Только активные договоры
-                    ->where('is_active', true)
-                    ->whereHas('status', function ($statusQuery) {
-                        // Исключаем статус "Обработка" (preparing)
-                        $statusQuery->where('slug', '!=', 'preparing');
-                    });
-            })
-            // Или это бонус от активного заказа
-            ->orWhereHas('order', function ($orderQuery) {
-                $orderQuery->where('is_active', true);
-            });
-        });
-
-        // Применяем фильтры
-        $filters = $args['filters'] ?? [];
-
-        if (!empty($filters['status_code'])) {
-            $query->whereHas('status', function ($q) use ($filters) {
-                $q->where('code', $filters['status_code']);
-            });
+        if (empty($filters['recipient_type'])) {
+            $filters['requester_type'] = 'agent';
         }
 
-        if (!empty($filters['source_type'])) {
-            if ($filters['source_type'] === 'contract') {
-                $query->whereNotNull('contract_id');
-            } elseif ($filters['source_type'] === 'order') {
-                $query->whereNotNull('order_id');
-            }
-        }
-
-        // Фильтр по типу получателя
-        if (!empty($filters['recipient_type'])) {
-            $query->where('recipient_type', $filters['recipient_type']);
-        }
-
-        // Фильтр по типу бонуса (legacy)
-        if (!empty($filters['bonus_type'])) {
-            if ($filters['bonus_type'] === 'agent') {
-                $query->where(function ($q) {
-                    $q->where('bonus_type', 'agent')
-                      ->orWhereNull('bonus_type');
-                });
-            } elseif ($filters['bonus_type'] === 'referral') {
-                $query->where('bonus_type', 'referral');
-            }
-        }
-
-        if (!empty($filters['date_from'])) {
-            $query->where('accrued_at', '>=', $filters['date_from']);
-        }
-
-        if (!empty($filters['date_to'])) {
-            $query->where('accrued_at', '<=', $filters['date_to']);
-        }
-
-        return $query->orderBy('accrued_at', 'desc')->get();
+        return app(\App\Services\BonusStatisticsService::class)->query($filters)->orderByDesc('accrued_at')->orderByDesc('id')->get();
     }
 }

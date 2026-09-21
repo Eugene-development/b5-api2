@@ -7,7 +7,6 @@ use App\Models\ProjectStatus;
 use App\Models\ProjectUser;
 use App\Models\User;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
 final class UpdateProject
@@ -19,7 +18,7 @@ final class UpdateProject
      */
     public function __invoke($_, array $args)
     {
-        return DB::transaction(function () use ($args) {
+        return \App\Services\FinancialLedger::transaction(function () use ($args) {
             $projectId = (string) $args['id'];
 
             Log::info('UpdateProject: Mutation called', [
@@ -76,6 +75,10 @@ final class UpdateProject
                 // Even if status is not changing, check if curator needs to be assigned
                 // This handles the case when status was set before the curator logic was implemented
                 $this->ensureCuratorAssigned($project);
+            }
+
+            foreach ($project->contracts()->get()->concat($project->orders()->get()) as $source) {
+                app(\App\Services\BonusAccrualService::class)->sync($source);
             }
 
             // Reload project with relationships

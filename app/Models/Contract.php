@@ -12,7 +12,7 @@ use Illuminate\Database\Eloquent\Relations\MorphToMany;
 
 class Contract extends Model
 {
-    use HasFactory, HasUlids;
+    use \App\Models\Concerns\HasFinancialTransactions, HasFactory, HasUlids;
 
     /**
      * The model's default values for attributes.
@@ -33,6 +33,15 @@ class Contract extends Model
     protected static function boot()
     {
         parent::boot();
+        static::saving(function ($source) {
+            if ($source->exists && $source->isDirty('project_id') && $source->bonuses()->exists()) {
+                throw new \App\Exceptions\FinancialException('Нельзя переносить источник с начисленными бонусами в другой проект.');
+            }
+        });
+        static::deleting(function ($source) {
+            \App\Services\FinancialLedger::assertUncommitted($source->bonuses());
+            $source->bonuses()->delete();
+        });
 
         // Применяем дефолтные значения процентов при создании
         static::creating(function ($contract) {
@@ -43,20 +52,20 @@ class Contract extends Model
                     for ($i = 0; $i < 4; $i++) {
                         $letters .= chr(rand(65, 90)); // A-Z
                     }
-                    $digits = str_pad((string)rand(0, 9999), 4, '0', STR_PAD_LEFT);
-                    $contractNumber = 'DOC-' . $letters . '-' . $digits;
+                    $digits = str_pad((string) rand(0, 9999), 4, '0', STR_PAD_LEFT);
+                    $contractNumber = 'DOC-'.$letters.'-'.$digits;
                 } while (Contract::where('contract_number', $contractNumber)->exists());
 
                 $contract->contract_number = $contractNumber;
             }
 
             // Если процент агента не указан или равен 0, устанавливаем дефолт 3%
-            if (empty($contract->agent_percentage) || floatval($contract->agent_percentage) == 0) {
+            if ($contract->agent_percentage === null) {
                 $contract->agent_percentage = 3.00;
             }
 
             // Если процент куратора не указан или равен 0, устанавливаем дефолт 2%
-            if (empty($contract->curator_percentage) || floatval($contract->curator_percentage) == 0) {
+            if ($contract->curator_percentage === null) {
                 $contract->curator_percentage = 2.00;
             }
         });
@@ -64,10 +73,10 @@ class Contract extends Model
         // Автоматический пересчёт бонусов при сохранении договора
         static::saving(function ($contract) {
             // Убедимся, что проценты установлены перед расчетом бонусов
-            if (empty($contract->agent_percentage) || floatval($contract->agent_percentage) == 0) {
+            if ($contract->agent_percentage === null) {
                 $contract->agent_percentage = 3.00;
             }
-            if (empty($contract->curator_percentage) || floatval($contract->curator_percentage) == 0) {
+            if ($contract->curator_percentage === null) {
                 $contract->curator_percentage = 2.00;
             }
         });
@@ -220,6 +229,7 @@ class Contract extends Model
 
     /**
      * Get all agent bonuses for this contract (agent + referral).
+     *
      * @deprecated Use bonuses() instead
      */
     public function agentBonuses(): HasMany
@@ -241,5 +251,15 @@ class Contract extends Model
     public function comments(): MorphToMany
     {
         return $this->morphToMany(Comment::class, 'commentable', 'commentables', 'commentable_id', 'comment_id');
+    }
+
+    public function agentBonusAmount(): float
+    {
+        return (float) $this->bonuses()->where('recipient_type', 'agent')->sum('commission_amount');
+    }
+
+    public function curatorBonusAmount(): float
+    {
+        return (float) $this->bonuses()->where('recipient_type', 'curator')->sum('commission_amount');
     }
 }

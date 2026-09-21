@@ -1,54 +1,42 @@
 <?php
 
-declare(strict_types=1);
-
 namespace App\GraphQL\Queries;
 
 use App\Models\BonusPaymentRequest;
-use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Facades\Auth;
 
-/**
- * Query для получения заявок на выплату (для админа).
- *
- * Feature: bonus-payments
- * Requirements: 4.1, 4.2, 4.3, 4.4
- */
-final readonly class BonusPaymentRequestsQuery
+final class BonusPaymentRequestsQuery
 {
-    /**
-     * Получить все заявки на выплату с пагинацией.
-     *
-     * @param  null  $_
-     * @param  array  $args
-     * @return LengthAwarePaginator
-     */
-    public function __invoke(null $_, array $args): LengthAwarePaginator
+    public function builder($root, array $args): Builder
     {
-        $query = BonusPaymentRequest::with(['agent.phones', 'status']);
-
-        // Применяем фильтры
-        $filters = $args['filters'] ?? [];
-
-        // Property 7: Filtering Correctness
-        if (!empty($filters['status_id'])) {
-            $query->where('status_id', $filters['status_id']);
+        $filters = $args['filters'] ?? $args;
+        $q = BonusPaymentRequest::with(['agent.phones', 'status']);
+        if (Auth::user()->status?->slug !== 'admin') {
+            $q->where('agent_id', Auth::id())->where('requester_type', 'curator');
+        }
+        foreach (['status_id', 'requester_type'] as $field) {
+            if (! empty($filters[$field])) {
+                $q->where($field, $filters[$field]);
+            }
+        }
+        if (! empty($filters['date_from'])) {
+            $q->where('created_at', '>=', $filters['date_from']);
+        }
+        if (! empty($filters['date_to'])) {
+            $q->where('created_at', '<=', $filters['date_to']);
+        }
+        if (! empty($filters['search'])) {
+            $term = '%'.$filters['search'].'%';
+            $q->where(function ($s) use ($term) {
+                $s->where('comment', 'like', $term)->orWhere('contact_info', 'like', $term)
+                    ->orWhere('card_number', 'like', $term)->orWhere('phone_number', 'like', $term)
+                    ->orWhere('id', 'like', $term)
+                    ->orWhereHas('status', fn ($status) => $status->where('name', 'like', $term))
+                    ->orWhereHas('agent', fn ($a) => $a->where('name', 'like', $term)->orWhere('email', 'like', $term)->orWhereHas('phones', fn ($phone) => $phone->where('value', 'like', $term)));
+            });
         }
 
-        if (!empty($filters['date_from'])) {
-            $query->where('created_at', '>=', $filters['date_from']);
-        }
-
-        if (!empty($filters['date_to'])) {
-            $query->where('created_at', '<=', $filters['date_to']);
-        }
-
-        // Сортировка по дате создания (новые первыми)
-        $query->orderBy('created_at', 'desc');
-
-        // Property 6: Pagination Consistency
-        $perPage = $args['first'] ?? 10;
-        $page = $args['page'] ?? 1;
-
-        return $query->paginate($perPage, ['*'], 'page', $page);
+        return $q->orderByDesc('created_at')->orderByDesc('id');
     }
 }

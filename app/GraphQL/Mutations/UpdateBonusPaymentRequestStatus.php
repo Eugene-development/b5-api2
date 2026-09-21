@@ -7,80 +7,39 @@ namespace App\GraphQL\Mutations;
 use App\Models\BonusPaymentRequest;
 use App\Models\BonusPaymentStatus;
 use App\Services\BonusPaymentService;
-use GraphQL\Error\Error;
-use Illuminate\Support\Facades\DB;
+use App\Services\FinancialLedger;
 
-/**
- * Мутация для обновления статуса заявки на выплату бонуса.
- *
- * Feature: bonus-payments
- * Requirements: 5.1, 5.2, 5.3, 5.4, 10.1, 10.5
- */
 final readonly class UpdateBonusPaymentRequestStatus
 {
-    private BonusPaymentService $bonusPaymentService;
+    public function __construct(private BonusPaymentService $bonusPaymentService = new BonusPaymentService) {}
 
-    public function __construct(?BonusPaymentService $bonusPaymentService = null)
-    {
-        $this->bonusPaymentService = $bonusPaymentService ?? new BonusPaymentService;
-    }
-
-    /**
-     * Обновить статус заявки на выплату.
-     *
-     * @throws Error
-     */
     public function __invoke(null $_, array $args): BonusPaymentRequest
     {
-        $requestId = $args['request_id'];
-        $statusCode = $args['status_code'];
-
-        $request = DB::transaction(function () use ($requestId, $statusCode): BonusPaymentRequest {
-            // Lock before reading the current status so concurrent transitions cannot
-            // settle or roll back the same bonuses twice.
-            $request = BonusPaymentRequest::with(['status'])
-                ->lockForUpdate()
-                ->find($requestId);
-            if (! $request) {
-                throw new Error('Заявка на выплату не найдена');
+        return FinancialLedger::transaction(function () use ($args) {
+            $request = BonusPaymentRequest::with('status')->lockForUpdate()->findOrFail($args['request_id']);
+            $code = $args['status_code'];
+            if (! in_array($code, ['requested', 'approved', 'paid', 'cancelled'], true)) {
+                throw new \App\Exceptions\FinancialException('Недопустимый статус выплаты.');
             }
-
-            $newStatus = BonusPaymentStatus::findByCode($statusCode);
-            if (! $newStatus) {
-                throw new Error("Статус '{$statusCode}' не найден в системе");
+            if ($request->status->code === $code) {
+                return $request;
             }
-
-            $currentStatusCode = $request->status?->code;
-            $isTransitionToPaid = $statusCode === 'paid' && $currentStatusCode !== 'paid';
-            $isTransitionFromPaid = $currentStatusCode === 'paid' && $statusCode !== 'paid';
-
-            // Подготавливаем данные для обновления
-            $updateData = ['status_id' => $newStatus->id];
-
-            // Property 4: Status Update with Payment Date
-            if ($statusCode === 'paid') {
-                $updateData['payment_date'] = now();
-            } else {
-                $updateData['payment_date'] = null;
-            }
-
-            // Обновляем заявку
-            $request->update($updateData);
-
-            // Автоматическое погашение бонусов при переходе в статус "paid"
-            if ($isTransitionToPaid) {
-                $this->bonusPaymentService->settleBonuses($request);
-            }
-
-            // Откат погашения при переходе из статуса "paid"
-            if ($isTransitionFromPaid) {
+            $status = BonusPaymentStatus::where('code', $code)->firstOrFail();
+            if ($request->status->code === 'paid') {
                 $this->bonusPaymentService->rollbackSettlement($request);
             }
+            if ($request->status->code === 'cancelled' && $code !== 'cancelled') {
+                $this->bonusPaymentService->linkBonusesToPaymentRequest($request, (int) $request->agent_id, (float) $request->amount, $request->requester_type);
+            }
+            if ($code === 'paid') {
+                $this->bonusPaymentService->settleBonuses($request);
+            }
+            if ($code === 'cancelled') {
+                $request->linkedBonuses()->delete();
+            }
+            $request->update(['status_id' => $status->id, 'payment_date' => $code === 'paid' ? now() : null]);
 
-            return $request;
+            return $request->fresh(['agent', 'status', 'linkedBonuses.bonus']);
         });
-
-        // Перезагружаем заявку со связями
-        return $request->fresh(['agent', 'status', 'linkedBonuses.bonus']);
     }
 }

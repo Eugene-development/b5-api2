@@ -8,7 +8,6 @@ use App\Models\Contract;
 use App\Models\Order;
 use App\Models\User;
 use Carbon\Carbon;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -35,7 +34,7 @@ class ReferralBonusService
     /**
      * Рассчитать сумму реферальной комиссии.
      *
-     * @param float $amount Сумма сделки
+     * @param  float  $amount  Сумма сделки
      * @return float Сумма комиссии (0.5% от суммы)
      */
     public function calculateReferralCommission(float $amount): float
@@ -43,21 +42,20 @@ class ReferralBonusService
         if ($amount <= 0) {
             return 0.0;
         }
+
         return round($amount * self::REFERRAL_COMMISSION_PERCENTAGE / 100, 2);
     }
 
     /**
      * Создать реферальный бонус для договора.
      *
-     * @param Contract $contract
-     * @param int $agentId ID агента (реферала), совершившего сделку
-     * @return Bonus|null
+     * @param  int  $agentId  ID агента (реферала), совершившего сделку
      */
     public function createReferralBonusForContract(Contract $contract, int $agentId): ?Bonus
     {
         // Получаем реферера агента
         $referrerId = $this->getReferrerId($agentId);
-        if (!$referrerId) {
+        if (! $referrerId) {
             return null;
         }
 
@@ -71,23 +69,25 @@ class ReferralBonusService
                 'agent_id' => $agentId,
                 'referrer_id' => $referrerId,
                 'project_owner_id' => $projectOwnerId,
-                'contract_id' => $contract->id
+                'contract_id' => $contract->id,
             ]);
+
             return null;
         }
 
         // Проверяем срок действия реферальной программы
-        if (!$this->isReferralProgramActive($agentId)) {
+        if (! $this->isReferralProgramActive($agentId)) {
             Log::info('ReferralBonusService: Referral program expired', [
                 'agent_id' => $agentId,
                 'referrer_id' => $referrerId,
-                'contract_id' => $contract->id
+                'contract_id' => $contract->id,
             ]);
+
             return null;
         }
 
         // Проверяем условия создания бонуса
-        if (!$contract->is_active || $contract->contract_amount === null) {
+        if (! $contract->is_active || $contract->contract_amount === null) {
             return null;
         }
 
@@ -98,7 +98,7 @@ class ReferralBonusService
             'agent_id' => $agentId,
             'contract_id' => $contract->id,
             'contract_amount' => $contract->contract_amount,
-            'commission_amount' => $commissionAmount
+            'commission_amount' => $commissionAmount,
         ]);
 
         return Bonus::create([
@@ -120,15 +120,13 @@ class ReferralBonusService
     /**
      * Создать реферальный бонус для заказа.
      *
-     * @param Order $order
-     * @param int $agentId ID агента (реферала), совершившего сделку
-     * @return Bonus|null
+     * @param  int  $agentId  ID агента (реферала), совершившего сделку
      */
     public function createReferralBonusForOrder(Order $order, int $agentId): ?Bonus
     {
         // Получаем реферера агента
         $referrerId = $this->getReferrerId($agentId);
-        if (!$referrerId) {
+        if (! $referrerId) {
             return null;
         }
 
@@ -141,18 +139,20 @@ class ReferralBonusService
                 'agent_id' => $agentId,
                 'referrer_id' => $referrerId,
                 'project_owner_id' => $projectOwnerId,
-                'order_id' => $order->id
+                'order_id' => $order->id,
             ]);
+
             return null;
         }
 
         // Проверяем срок действия реферальной программы
-        if (!$this->isReferralProgramActive($agentId)) {
+        if (! $this->isReferralProgramActive($agentId)) {
             Log::info('ReferralBonusService: Referral program expired', [
                 'agent_id' => $agentId,
                 'referrer_id' => $referrerId,
-                'order_id' => $order->id
+                'order_id' => $order->id,
             ]);
+
             return null;
         }
 
@@ -161,7 +161,7 @@ class ReferralBonusService
         $orderAmount = $order->getAttributes()['order_amount'] ?? $order->getRawOriginal('order_amount') ?? null;
 
         // Проверяем условия создания бонуса
-        if (!$order->is_active || !$orderAmount || (float)$orderAmount <= 0) {
+        if (! $order->is_active || ! $orderAmount || (float) $orderAmount <= 0) {
             return null;
         }
 
@@ -172,7 +172,7 @@ class ReferralBonusService
             'agent_id' => $agentId,
             'order_id' => $order->id,
             'order_amount' => $orderAmount,
-            'commission_amount' => $commissionAmount
+            'commission_amount' => $commissionAmount,
         ]);
 
         return Bonus::create([
@@ -198,31 +198,32 @@ class ReferralBonusService
      * - referrer_key у реферала (ссылается на key реферера)
      * - key у реферера (уникальный ключ пользователя)
      *
-     * @param int $userId ID пользователя (реферала)
+     * @param  int  $userId  ID пользователя (реферала)
      * @return int|null ID реферера или null
      */
     public function getReferrerId(int $userId): ?int
     {
         $user = User::find($userId);
-        if (!$user || !$user->referrer_key) {
+        if (! $user || ! $user->referrer_key) {
             return null;
         }
 
         // Ищем реферера по его ключу (key), который совпадает с referrer_key реферала
         $referrer = User::where('key', $user->referrer_key)->first();
+
         return $referrer?->id;
     }
 
     /**
      * Проверить, не истёк ли срок реферальной программы для реферала.
      *
-     * @param int $referralId ID реферала
+     * @param  int  $referralId  ID реферала
      * @return bool true если срок не истёк
      */
     public function isReferralProgramActive(int $referralId): bool
     {
         $referral = User::find($referralId);
-        if (!$referral) {
+        if (! $referral) {
             return false;
         }
 
@@ -235,88 +236,26 @@ class ReferralBonusService
     /**
      * Получить статистику реферальных бонусов для реферера.
      *
-     * @param int $referrerId ID реферера
-     * @return array
+     * @param  int  $referrerId  ID реферера
      */
     public function getReferralStats(int $referrerId): array
     {
-        $query = Bonus::where('user_id', $referrerId)
-            ->where('recipient_type', Bonus::RECIPIENT_REFERRER)
-            ->with(['contract.status', 'contract.partnerPaymentStatus', 'order.status']);
+        $stats = app(BonusStatisticsService::class)->calculate(['user_id' => $referrerId, 'recipient_type' => 'referrer']);
 
-        // Фильтруем бонусы: исключаем неактивные договоры и заказы
-        $query->where(function ($q) {
-            $q->whereHas('contract', function ($contractQuery) {
-                $contractQuery->where('is_active', true);
-            })
-            ->orWhereHas('order', function ($orderQuery) {
-                $orderQuery->where('is_active', true);
-            });
-        });
-
-        $bonuses = $query->get();
-
-        $totalPending = 0.0;
-        $totalAvailable = 0.0;
-        $totalPaid = 0.0;
-
-        foreach ($bonuses as $bonus) {
-            $amount = (float) $bonus->commission_amount;
-
-            // Выплачено: бонусы, которые уже выплачены
-            if ($bonus->paid_at !== null) {
-                $totalPaid += $amount;
-                continue;
-            }
-
-            // Определяем доступность бонуса к выплате (как в BonusService::getAgentStats)
-            $isAvailable = false;
-
-            if ($bonus->contract_id && $bonus->contract) {
-                // Для договоров: проверяем is_contract_completed И is_partner_paid
-                $contract = $bonus->contract;
-                $isContractCompleted = $contract->status && $contract->status->slug === 'completed';
-                $isPartnerPaid = $contract->partnerPaymentStatus && $contract->partnerPaymentStatus->code === 'paid';
-
-                $isAvailable = $isContractCompleted && $isPartnerPaid;
-            } elseif ($bonus->order_id && $bonus->order) {
-                // Для заказов: проверяем статус доставки
-                $order = $bonus->order;
-                $isOrderDelivered = $order->status && $order->status->slug === 'delivered';
-
-                $isAvailable = $isOrderDelivered;
-            }
-
-            if ($isAvailable) {
-                $totalAvailable += $amount;
-            } else {
-                $totalPending += $amount;
-            }
-        }
-
-        // Получаем статистику по рефералам
-        $referralStats = $this->getReferralUserStats($referrerId);
-
-        return [
-            'total_pending' => round($totalPending, 2),
-            'total_available' => round($totalAvailable, 2),
-            'total_paid' => round($totalPaid, 2),
-            'total' => round($totalPending + $totalAvailable + $totalPaid, 2),
-            'referrals' => $referralStats,
-        ];
+        return array_merge($stats, ['total' => $stats['total_pending'] + $stats['total_available'] + $stats['total_requested'] + $stats['total_paid'],
+            'referrals' => $this->getReferralUserStats($referrerId)]);
     }
 
     /**
      * Получить статистику по каждому рефералу.
      *
-     * @param int $referrerId ID реферера
-     * @return array
+     * @param  int  $referrerId  ID реферера
      */
     private function getReferralUserStats(int $referrerId): array
     {
         // Получаем ключ реферера
         $referrer = User::find($referrerId);
-        if (!$referrer || !$referrer->key) {
+        if (! $referrer || ! $referrer->key) {
             return [];
         }
 
@@ -333,9 +272,9 @@ class ReferralBonusService
                     $q->whereHas('contract', function ($contractQuery) {
                         $contractQuery->where('is_active', true);
                     })
-                    ->orWhereHas('order', function ($orderQuery) {
-                        $orderQuery->where('is_active', true);
-                    });
+                        ->orWhereHas('order', function ($orderQuery) {
+                            $orderQuery->where('is_active', true);
+                        });
                 })
                 ->sum('commission_amount');
 
@@ -356,18 +295,15 @@ class ReferralBonusService
 
     /**
      * Получить ID владельца проекта из договора.
-     *
-     * @param Contract $contract
-     * @return int|null
      */
     private function getProjectOwnerIdFromContract(Contract $contract): ?int
     {
-        if (!$contract->project_id) {
+        if (! $contract->project_id) {
             return null;
         }
 
         // Загружаем проект если не загружен
-        if (!$contract->relationLoaded('project')) {
+        if (! $contract->relationLoaded('project')) {
             $contract->load('project');
         }
 
@@ -376,18 +312,15 @@ class ReferralBonusService
 
     /**
      * Получить ID владельца проекта из заказа.
-     *
-     * @param Order $order
-     * @return int|null
      */
     private function getProjectOwnerIdFromOrder(Order $order): ?int
     {
-        if (!$order->project_id) {
+        if (! $order->project_id) {
             return null;
         }
 
         // Загружаем проект если не загружен
-        if (!$order->relationLoaded('project')) {
+        if (! $order->relationLoaded('project')) {
             $order->load('project');
         }
 

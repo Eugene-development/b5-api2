@@ -7,7 +7,6 @@ namespace App\GraphQL\Mutations;
 use App\Models\BonusPaymentRequest;
 use App\Services\BonusPaymentService;
 use GraphQL\Error\Error;
-use Illuminate\Support\Facades\DB;
 
 /**
  * Мутация для обновления заявки на выплату бонуса (для админа).
@@ -28,7 +27,7 @@ final readonly class UpdateBonusPaymentRequest
         $requestId = $args['request_id'];
         $input = $args['input'];
 
-        return DB::transaction(function () use ($requestId, $input): BonusPaymentRequest {
+        return \App\Services\FinancialLedger::transaction(function () use ($requestId, $input): BonusPaymentRequest {
             // Находим заявку и блокируем её от параллельного изменения
             $request = BonusPaymentRequest::with(['status'])->lockForUpdate()->find($requestId);
             if (! $request) {
@@ -61,7 +60,7 @@ final readonly class UpdateBonusPaymentRequest
                 // Для остальных статусов - полное редактирование
                 if (isset($input['amount'])) {
                     $amount = (float) $input['amount'];
-                    if ($amount < 1000) {
+                    if ($amount < 1000 || abs($amount * 100 - round($amount * 100)) > 0.00001) {
                         throw new Error('Минимальная сумма выплаты — 1 000 ₽');
                     }
                     $updateData['amount'] = $amount;

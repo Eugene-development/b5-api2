@@ -11,8 +11,6 @@ final readonly class AdminBonusesQuery
     /**
      * Get all bonuses for admin panel.
      *
-     * @param  null  $_
-     * @param  array  $args
      * @return \Illuminate\Database\Eloquent\Collection
      */
     public function __invoke(null $_, array $args)
@@ -24,19 +22,23 @@ final readonly class AdminBonusesQuery
             'contract.project.users',
             'order.partnerPaymentStatus',
             'order.project.users',
-            'user'
+            'user',
         ]);
 
         // Применяем фильтры
         $filters = $args['filters'] ?? [];
+        if (\Illuminate\Support\Facades\Auth::user()->status?->slug !== 'admin') {
+            $filters['user_id'] = \Illuminate\Support\Facades\Auth::id();
+            $filters['recipient_type'] = 'curator';
+        }
 
-        if (!empty($filters['status_code'])) {
+        if (! empty($filters['status_code'])) {
             $query->whereHas('status', function ($q) use ($filters) {
                 $q->where('code', $filters['status_code']);
             });
         }
 
-        if (!empty($filters['source_type'])) {
+        if (! empty($filters['source_type'])) {
             if ($filters['source_type'] === 'contract') {
                 $query->whereNotNull('contract_id');
             } elseif ($filters['source_type'] === 'order') {
@@ -46,32 +48,32 @@ final readonly class AdminBonusesQuery
 
         // Фильтр по user_id или agent_id (backward compatibility)
         $userId = $filters['user_id'] ?? $filters['agent_id'] ?? null;
-        if (!empty($userId)) {
+        if (! empty($userId)) {
             $query->where('user_id', $userId);
         }
 
         // Фильтр по типу получателя
-        if (!empty($filters['recipient_type'])) {
+        if (! empty($filters['recipient_type'])) {
             $query->where('recipient_type', $filters['recipient_type']);
         }
 
         // Фильтр по типу бонуса (legacy)
-        if (!empty($filters['bonus_type'])) {
+        if (! empty($filters['bonus_type'])) {
             if ($filters['bonus_type'] === 'agent') {
                 $query->where(function ($q) {
                     $q->where('bonus_type', 'agent')
-                      ->orWhereNull('bonus_type');
+                        ->orWhereNull('bonus_type');
                 });
             } elseif ($filters['bonus_type'] === 'referral') {
                 $query->where('bonus_type', 'referral');
             }
         }
 
-        if (!empty($filters['date_from'])) {
+        if (! empty($filters['date_from'])) {
             $query->where('accrued_at', '>=', $filters['date_from']);
         }
 
-        if (!empty($filters['date_to'])) {
+        if (! empty($filters['date_to'])) {
             $query->where('accrued_at', '<=', $filters['date_to']);
         }
 

@@ -28,7 +28,7 @@ class BonusStatus extends Model
      */
     public function bonuses(): HasMany
     {
-        return $this->hasMany(AgentBonus::class, 'status_id');
+        return $this->hasMany(Bonus::class, 'status_id');
     }
 
     /**
@@ -63,6 +63,7 @@ class BonusStatus extends Model
     {
         // Сначала пробуем найти старый статус 'accrued'
         $id = static::where('code', 'accrued')->value('id');
+
         // Если не найден, используем новый статус 'pending'
         return $id ?? static::pendingId();
     }
@@ -75,6 +76,7 @@ class BonusStatus extends Model
     {
         // Сначала пробуем найти старый статус 'available_for_payment'
         $id = static::where('code', 'available_for_payment')->value('id');
+
         // Если не найден, используем новый статус 'pending'
         return $id ?? static::pendingId();
     }

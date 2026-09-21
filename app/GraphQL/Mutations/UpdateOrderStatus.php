@@ -6,7 +6,6 @@ use App\Models\Order;
 use App\Models\OrderStatus;
 use App\Models\PartnerPaymentStatus;
 use App\Services\BonusService;
-use Illuminate\Support\Facades\DB;
 
 class UpdateOrderStatus
 {
@@ -18,7 +17,7 @@ class UpdateOrderStatus
      */
     public function __invoke($_, array $args): Order
     {
-        return DB::transaction(function () use ($args): Order {
+        return \App\Services\FinancialLedger::transaction(function () use ($args): Order {
             $orderId = $args['order_id'];
             $statusSlug = $args['status_slug'];
 

@@ -5,7 +5,6 @@ namespace App\GraphQL\Mutations;
 use App\Models\Contract;
 use App\Models\ContractStatus;
 use App\Services\BonusService;
-use Illuminate\Support\Facades\DB;
 
 class UpdateContractStatus
 {
@@ -20,7 +19,7 @@ class UpdateContractStatus
         $contractId = $args['contract_id'];
         $statusSlug = $args['status_slug'];
 
-        return DB::transaction(function () use ($contractId, $statusSlug) {
+        return \App\Services\FinancialLedger::transaction(function () use ($contractId, $statusSlug) {
             // Find the contract with relations
             $contract = Contract::with(['status', 'partnerPaymentStatus', 'agentBonus'])
                 ->findOrFail($contractId);
@@ -33,6 +32,7 @@ class UpdateContractStatus
             // Update the contract status
             $contract->status_id = $status->id;
             $contract->save();
+            $contract->refresh();
 
             // Handle bonus status change
             $bonusService = app(BonusService::class);

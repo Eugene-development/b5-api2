@@ -6,7 +6,6 @@ namespace App\GraphQL\Mutations;
 
 use App\Models\BonusPaymentRequest;
 use GraphQL\Error\Error;
-use Illuminate\Support\Facades\DB;
 
 /**
  * Мутация для удаления заявки на выплату бонуса (для админа).
@@ -24,7 +23,7 @@ final readonly class DeleteBonusPaymentRequest
     {
         $requestId = $args['request_id'];
 
-        DB::transaction(function () use ($requestId): void {
+        \App\Services\FinancialLedger::transaction(function () use ($requestId): void {
             $request = BonusPaymentRequest::with(['status'])
                 ->lockForUpdate()
                 ->find($requestId);

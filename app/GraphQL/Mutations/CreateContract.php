@@ -6,22 +6,17 @@ namespace App\GraphQL\Mutations;
 
 use App\Models\Contract;
 use App\Models\ContractStatus;
-use Illuminate\Support\Facades\DB;
 
 final readonly class CreateContract
 {
     /**
      * Create a new contract with automatic bonus creation.
-     *
-     * @param  null  $_
-     * @param  array  $args
-     * @return Contract
      */
     public function __invoke(null $_, array $args): Contract
     {
         $input = $args['input'] ?? $args;
 
-        return DB::transaction(function () use ($input) {
+        return \App\Services\FinancialLedger::transaction(function () use ($input) {
             // Get default contract status
             $defaultStatus = ContractStatus::getDefault();
 

@@ -6,7 +6,6 @@ use App\Models\Project;
 use App\Models\ProjectUser;
 use App\Models\User;
 use App\Services\BonusService;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
@@ -20,7 +19,7 @@ final class AcceptProject
      */
     public function __invoke($_, array $args)
     {
-        return DB::transaction(function () use ($args) {
+        return \App\Services\FinancialLedger::transaction(function () use ($args) {
             // Ensure correct types: userId is integer, projectId and statusId are ULID strings
             $projectId = (string) $args['projectId'];
             $userId = (int) $args['userId'];
@@ -91,6 +90,10 @@ final class AcceptProject
                 ->where('role', $role)
                 ->first();
 
+            if ($role === ProjectUser::ROLE_CURATOR && ProjectUser::where('project_id', $projectId)
+                ->where('role', $role)->where('user_id', '!=', $userId)->exists()) {
+                throw new \App\Exceptions\FinancialException('У проекта уже есть куратор. Сначала снимите текущее назначение.');
+            }
             $relationshipCreated = false;
             if ($existing) {
                 Log::info('AcceptProject: Relationship already exists', ['id' => $existing->id]);
@@ -133,6 +136,10 @@ final class AcceptProject
                     'project_id' => $project->id,
                     'current_status_id' => $project->status_id,
                 ]);
+            }
+
+            foreach ($project->contracts()->get()->concat($project->orders()->get()) as $source) {
+                app(\App\Services\BonusAccrualService::class)->sync($source);
             }
 
             return $projectUser;

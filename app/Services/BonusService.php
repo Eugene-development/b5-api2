@@ -27,13 +27,14 @@ class BonusService
 
     public function __construct(?ReferralBonusService $referralBonusService = null)
     {
-        $this->referralBonusService = $referralBonusService ?? new ReferralBonusService();
+        $this->referralBonusService = $referralBonusService ?? new ReferralBonusService;
     }
+
     /**
      * Рассчитать сумму комиссии.
      *
-     * @param float $amount Сумма договора/закупки
-     * @param float $percentage Процент агента (0-100)
+     * @param  float  $amount  Сумма договора/закупки
+     * @param  float  $percentage  Процент агента (0-100)
      * @return float Сумма комиссии
      */
     public function calculateCommission(float $amount, float $percentage): float
@@ -41,6 +42,7 @@ class BonusService
         if ($amount <= 0 || $percentage < 0 || $percentage > 100) {
             return 0.0;
         }
+
         return round($amount * $percentage / 100, 2);
     }
 
@@ -48,64 +50,23 @@ class BonusService
      * Создать бонус для договора.
      * Создаёт бонусы для агента и куратора.
      *
-     * @param Contract $contract
      * @return Bonus|null Возвращает агентский бонус
      */
     public function createBonusForContract(Contract $contract): ?Bonus
     {
-        // Проверяем условия создания бонуса
-        // Сумма 0 допустима - бонус будет создан с нулевой комиссией
-        if (!$contract->is_active || $contract->contract_amount === null) {
-            return null;
-        }
+        app(BonusAccrualService::class)->sync($contract);
 
-        // Получаем agent_id из проекта
-        $agentId = $this->getAgentIdFromProject($contract->project_id);
-        if (!$agentId) {
-            return null;
-        }
-
-        // Создаём бонус агента
-        $agentCommission = $this->calculateCommission(
-            (float) $contract->contract_amount,
-            (float) $contract->agent_percentage
-        );
-
-        $agentBonus = Bonus::create([
-            'user_id' => $agentId,
-            'contract_id' => $contract->id,
-            'order_id' => null,
-            'commission_amount' => $agentCommission,
-            'percentage' => $contract->agent_percentage,
-            'status_id' => BonusStatus::pendingId(),
-            'recipient_type' => Bonus::RECIPIENT_AGENT,
-            'bonus_type' => 'agent',
-            'accrued_at' => now(),
-            'available_at' => null,
-            'paid_at' => null,
-            'referral_user_id' => null,
-        ]);
-
-        // Создаём бонус куратора
-        $this->createCuratorBonusForContract($contract);
-
-        // Создаём реферальный бонус для реферера агента
-        $this->referralBonusService->createReferralBonusForContract($contract, $agentId);
-
-        return $agentBonus;
+        return $contract->bonuses()->where('recipient_type', 'agent')->first();
     }
 
     /**
      * Создать бонус куратора для договора.
-     *
-     * @param Contract $contract
-     * @return Bonus|null
      */
     public function createCuratorBonusForContract(Contract $contract): ?Bonus
     {
         // Получаем curator_id из проекта
         $curatorId = $this->getCuratorIdFromProject($contract->project_id);
-        if (!$curatorId) {
+        if (! $curatorId) {
             return null;
         }
 
@@ -134,67 +95,23 @@ class BonusService
      * Создать бонус для закупки.
      * Создаёт бонусы для агента и куратора.
      *
-     * @param Order $order
      * @return Bonus|null Возвращает агентский бонус
      */
     public function createBonusForOrder(Order $order): ?Bonus
     {
-        // Получаем order_amount из атрибутов напрямую, минуя accessor
-        // Это важно для события created, когда позиции ещё не созданы
-        $orderAmount = $order->getAttributes()['order_amount'] ?? $order->getRawOriginal('order_amount') ?? null;
-        
-        // Проверяем условия создания бонуса
-        // Используем значение из атрибутов, а не accessor
-        if (!$order->is_active || !$orderAmount || (float)$orderAmount <= 0) {
-            return null;
-        }
+        app(BonusAccrualService::class)->sync($order);
 
-        // Получаем agent_id из проекта
-        $agentId = $this->getAgentIdFromProject($order->project_id);
-        if (!$agentId) {
-            return null;
-        }
-
-        $agentCommission = $this->calculateCommission(
-            (float) $orderAmount,
-            (float) $order->agent_percentage
-        );
-
-        $agentBonus = Bonus::create([
-            'user_id' => $agentId,
-            'contract_id' => null,
-            'order_id' => $order->id,
-            'commission_amount' => $agentCommission,
-            'percentage' => $order->agent_percentage,
-            'status_id' => BonusStatus::pendingId(),
-            'recipient_type' => Bonus::RECIPIENT_AGENT,
-            'bonus_type' => 'agent',
-            'accrued_at' => now(),
-            'available_at' => null,
-            'paid_at' => null,
-            'referral_user_id' => null,
-        ]);
-
-        // Создаём бонус куратора
-        $this->createCuratorBonusForOrder($order);
-
-        // Создаём реферальный бонус для реферера агента
-        $this->referralBonusService->createReferralBonusForOrder($order, $agentId);
-
-        return $agentBonus;
+        return $order->bonuses()->where('recipient_type', 'agent')->first();
     }
 
     /**
      * Создать бонус куратора для закупки.
-     *
-     * @param Order $order
-     * @return Bonus|null
      */
     public function createCuratorBonusForOrder(Order $order): ?Bonus
     {
         // Получаем curator_id из проекта
         $curatorId = $this->getCuratorIdFromProject($order->project_id);
-        if (!$curatorId) {
+        if (! $curatorId) {
             return null;
         }
 
@@ -224,156 +141,76 @@ class BonusService
 
     /**
      * Обновить бонусы при изменении договора.
-     *
-     * @param Contract $contract
-     * @return void
      */
     public function updateBonusesForContract(Contract $contract): void
     {
-        // Обновляем агентский бонус
-        $agentBonus = $contract->agentBonus;
-        if ($agentBonus) {
-            $this->recalculateBonus($agentBonus);
-        }
-
-        // Обновляем кураторский бонус
-        $curatorBonus = $contract->curatorBonus;
-        if ($curatorBonus) {
-            $this->recalculateCuratorBonus($curatorBonus, $contract);
-        }
+        app(BonusAccrualService::class)->sync($contract);
     }
 
     /**
      * Обновить бонусы при изменении закупки.
-     *
-     * @param Order $order
-     * @return void
      */
     public function updateBonusesForOrder(Order $order): void
     {
-        // Явно загружаем отношения для избежания конфликта с accessor'ами
-        // (accessor agent_bonus возвращает float, а нам нужна модель Bonus)
-        $order->load(['agentBonus', 'curatorBonus']);
-        
-        // Обновляем агентский бонус
-        $agentBonus = $order->getRelation('agentBonus');
-        if ($agentBonus instanceof Bonus) {
-            $this->recalculateBonus($agentBonus);
-        }
-
-        // Обновляем кураторский бонус
-        $curatorBonus = $order->getRelation('curatorBonus');
-        if ($curatorBonus instanceof Bonus) {
-            $this->recalculateCuratorBonusForOrder($curatorBonus, $order);
-        }
+        app(BonusAccrualService::class)->sync($order);
     }
 
     /**
      * Пересчитать бонус при изменении суммы или процента.
-     *
-     * @param Bonus $bonus
-     * @return Bonus
      */
     public function recalculateBonus(Bonus $bonus): Bonus
     {
-        $amount = 0.0;
-        $percentage = 0.0;
-        $isActive = true;
+        $source = $bonus->contract_id ? $bonus->contract : $bonus->order;
+        app(BonusAccrualService::class)->sync($source);
 
-        if ($bonus->contract_id && $bonus->contract) {
-            $amount = (float) $bonus->contract->contract_amount;
-            $percentage = (float) $bonus->contract->agent_percentage;
-            $isActive = $bonus->contract->is_active;
-        } elseif ($bonus->order_id && $bonus->order) {
-            $amount = (float) $bonus->order->order_amount;
-            $percentage = (float) $bonus->order->agent_percentage;
-            $isActive = $bonus->order->is_active;
-        }
-
-        // Если сущность деактивирована, обнуляем комиссию
-        if (!$isActive) {
-            $bonus->commission_amount = 0;
-        } else {
-            $bonus->commission_amount = $this->calculateCommission($amount, $percentage);
-        }
-
-        $bonus->percentage = $percentage;
-        $bonus->save();
-        return $bonus;
+        return $bonus->fresh() ?? $bonus;
     }
 
     /**
      * Пересчитать бонус куратора для договора.
      *
-     * @param Bonus $bonus
-     * @param Contract $contract
-     * @return Bonus
+     * @param  Contract  $contract
      */
-    public function recalculateCuratorBonus(Bonus $bonus, Contract $contract): Bonus
+    public function recalculateCuratorBonus(Bonus $bonus, Contract $source): Bonus
     {
-        if (!$contract->is_active) {
-            $bonus->commission_amount = 0;
-        } else {
-            $bonus->commission_amount = $this->calculateCommission(
-                (float) $contract->contract_amount,
-                (float) $contract->curator_percentage
-            );
-        }
+        app(BonusAccrualService::class)->sync($source);
 
-        $bonus->percentage = $contract->curator_percentage;
-        $bonus->save();
-        return $bonus;
+        return $bonus->fresh() ?? $bonus;
     }
 
     /**
      * Пересчитать бонус куратора для закупки.
      *
-     * @param Bonus $bonus
-     * @param Order $order
-     * @return Bonus
+     * @param  Order  $order
      */
-    public function recalculateCuratorBonusForOrder(Bonus $bonus, Order $order): Bonus
+    public function recalculateCuratorBonusForOrder(Bonus $bonus, Order $source): Bonus
     {
-        if (!$order->is_active) {
-            $bonus->commission_amount = 0;
-        } else {
-            $bonus->commission_amount = $this->calculateCommission(
-                (float) $order->order_amount,
-                (float) $order->curator_percentage
-            );
-        }
+        app(BonusAccrualService::class)->sync($source);
 
-        $bonus->percentage = $order->curator_percentage;
-        $bonus->save();
-        return $bonus;
+        return $bonus->fresh() ?? $bonus;
     }
-
 
     /**
      * Перевести бонус в статус "Доступно к выплате".
-     *
-     * @param Bonus $bonus
-     * @return Bonus
      */
     public function markBonusAsAvailable(Bonus $bonus): Bonus
     {
         $bonus->status_id = BonusStatus::availableForPaymentId();
         $bonus->available_at = now();
         $bonus->save();
+
         return $bonus;
     }
 
     /**
      * Откатить бонус в статус "Начислено".
-     *
-     * @param Bonus $bonus
-     * @return Bonus
      */
     public function revertBonusToAccrued(Bonus $bonus): Bonus
     {
         $bonus->status_id = BonusStatus::accruedId();
         $bonus->available_at = null;
         $bonus->save();
+
         return $bonus;
     }
 
@@ -384,122 +221,17 @@ class BonusService
      * - agent: бонусы за собственные договора и заказы агента
      * - curator: бонусы за курирование проектов
      * - referral: бонусы за договора и заказы рефералов агента
-     *
-     * @param int $userId
-     * @param array|null $filters
-     * @return array
      */
     public function getAgentStats(int $userId, ?array $filters = null): array
     {
-        $query = Bonus::where('user_id', $userId)
-            ->with(['contract.status', 'contract.partnerPaymentStatus', 'order.status']);
 
-        // Фильтруем бонусы: исключаем неактивные договоры и заказы
-        // Также исключаем договоры в статусе "Обработка" (preparing)
-        $query->where(function ($q) {
-            $q->whereHas('contract', function ($contractQuery) {
-                $contractQuery
-                    // Только активные договоры
-                    ->where('is_active', true)
-                    ->whereHas('status', function ($statusQuery) {
-                        // Исключаем статус "Обработка" (preparing)
-                        $statusQuery->where('slug', '!=', 'preparing');
-                    });
-            })
-            // Или это бонус от активного заказа
-            ->orWhereHas('order', function ($orderQuery) {
-                $orderQuery->where('is_active', true);
-            });
-        });
-
-        // Применяем фильтры если указаны
-        if ($filters) {
-            if (!empty($filters['date_from'])) {
-                $query->where('accrued_at', '>=', $filters['date_from']);
-            }
-            if (!empty($filters['date_to'])) {
-                $query->where('accrued_at', '<=', $filters['date_to']);
-            }
-            if (!empty($filters['source_type'])) {
-                if ($filters['source_type'] === 'contract') {
-                    $query->whereNotNull('contract_id');
-                } elseif ($filters['source_type'] === 'order') {
-                    $query->whereNotNull('order_id');
-                }
-            }
-            // Фильтр по типу получателя (agent/curator/referrer)
-            if (!empty($filters['recipient_type'])) {
-                $query->where('recipient_type', $filters['recipient_type']);
-            }
-            // Фильтр по типу бонуса (agent/referral) - legacy
-            if (!empty($filters['bonus_type'])) {
-                if ($filters['bonus_type'] === 'agent') {
-                    $query->where(function ($q) {
-                        $q->where('bonus_type', 'agent')
-                          ->orWhereNull('bonus_type');
-                    });
-                } elseif ($filters['bonus_type'] === 'referral') {
-                    $query->where('bonus_type', 'referral');
-                }
-            }
+        $filters = $filters ?? [];
+        if (empty($filters['recipient_type'])) {
+            $filters['requester_type'] = 'agent';
         }
 
-        $bonuses = $query->get();
-
-        $totalPending = 0.0;
-        $totalAvailable = 0.0;
-        $totalPaid = 0.0;
-
-        foreach ($bonuses as $bonus) {
-            $amount = (float) $bonus->commission_amount;
-
-            // Выплачено: бонусы, которые уже выплачены
-            if ($bonus->paid_at !== null) {
-                $totalPaid += $amount;
-                continue;
-            }
-
-            // Определяем доступность бонуса к выплате
-            $isAvailable = false;
-
-            if ($bonus->contract_id && $bonus->contract) {
-                // Для договоров: проверяем is_contract_completed И is_partner_paid
-                $contract = $bonus->contract;
-                $isContractCompleted = $contract->status && $contract->status->slug === 'completed';
-                $isPartnerPaid = $contract->partnerPaymentStatus && $contract->partnerPaymentStatus->code === 'paid';
-                $isContractActive = $contract->is_active === true;
-
-                $isAvailable = $isContractCompleted && $isPartnerPaid && $isContractActive;
-            } elseif ($bonus->order_id && $bonus->order) {
-                // Для заказов: проверяем статус доставки
-                $order = $bonus->order;
-                $isOrderDelivered = $order->status && $order->status->slug === 'delivered';
-                $isOrderActive = $order->is_active === true;
-
-                $isAvailable = $isOrderDelivered && $isOrderActive;
-            }
-
-            if ($isAvailable) {
-                $totalAvailable += $amount;
-            } else {
-                $totalPending += $amount;
-            }
-        }
-
-        // Получаем сумму запрошенных к выплате заявок (статус = 'requested')
-        $totalRequested = $this->getRequestedPaymentsAmount($userId);
-
-        // Вычитаем запрошенную сумму из доступного баланса
-        $adjustedAvailable = max(0, $totalAvailable - $totalRequested);
-
-        return [
-            'total_pending' => round($totalPending, 2),
-            'total_available' => round($adjustedAvailable, 2),
-            'total_requested' => round($totalRequested, 2),
-            'total_paid' => round($totalPaid, 2),
-        ];
+        return app(BonusStatisticsService::class)->calculate(array_merge($filters, ['user_id' => $userId]));
     }
-
 
     /**
      * Обработать изменение статуса оплаты партнёром для договора.
@@ -510,19 +242,11 @@ class BonusService
      *
      * Обновляет ВСЕ бонусы договора (агентский + кураторский + реферальный).
      *
-     * @param Contract $contract
-     * @param string $newStatusCode
-     * @return void
+     * @param  string  $newStatusCode
      */
-    public function handleContractPartnerPaymentStatusChange(Contract $contract, string $newStatusCode): void
+    public function handleContractPartnerPaymentStatusChange(Contract $contract, string $status): void
     {
-        // Получаем все бонусы договора
-        $bonuses = $contract->bonuses;
-
-        foreach ($bonuses as $bonus) {
-            // Проверяем оба условия для доступности бонуса
-            $this->checkAndUpdateContractBonusAvailability($contract, $bonus);
-        }
+        app(BonusAccrualService::class)->sync($contract);
     }
 
     /**
@@ -532,15 +256,13 @@ class BonusService
      * Бонус переходит в "Доступно" только при доставке заказа.
      * Этот метод оставлен для обратной совместимости, но не выполняет действий.
      *
-     * @param Order $order
-     * @param string $newStatusCode
-     * @return void
+     * @param  string  $newStatusCode
+     *
      * @deprecated Для заказов используйте handleOrderStatusChange
      */
-    public function handleOrderPartnerPaymentStatusChange(Order $order, string $newStatusCode): void
+    public function handleOrderPartnerPaymentStatusChange(Order $order, string $status): void
     {
-        // Для заказов статус оплаты партнёром не влияет на бонусы.
-        // Бонус переходит в "Доступно" только при доставке заказа (handleOrderStatusChange).
+        app(BonusAccrualService::class)->sync($order);
     }
 
     /**
@@ -556,31 +278,15 @@ class BonusService
      *
      * При смене с отменяющего статуса на обычный — бонусы восстанавливаются.
      *
-     * @param Contract $contract
-     * @param string $newStatusSlug
-     * @return void
+     * @param  string  $newStatusSlug
      */
-    public function handleContractStatusChange(Contract $contract, string $newStatusSlug): void
+    public function handleContractStatusChange(Contract $contract, string $status): void
     {
-        // Статусы, при которых бонусы аннулируются
-        $cancellingStatuses = ['rejected', 'terminated'];
-
-        // Если статус "Отказ" или "Расторгнут" — аннулируем все бонусы
-        if (in_array($newStatusSlug, $cancellingStatuses)) {
-            $this->cancelBonusesForContract($contract);
-            return;
-        }
-
-        // Для всех остальных статусов — восстанавливаем аннулированные бонусы
-        // и проверяем условия доступности
-        $this->restoreAndUpdateContractBonuses($contract);
+        app(BonusAccrualService::class)->sync($contract);
     }
 
     /**
      * Восстановить аннулированные бонусы и обновить их доступность.
-     *
-     * @param Contract $contract
-     * @return void
      */
     private function restoreAndUpdateContractBonuses(Contract $contract): void
     {
@@ -611,7 +317,6 @@ class BonusService
      *
      * Аннулируются только невыплаченные бонусы (без paid_at).
      *
-     * @param Contract $contract
      * @return int Количество аннулированных бонусов
      */
     public function cancelBonusesForContract(Contract $contract): int
@@ -619,8 +324,9 @@ class BonusService
         $cancelledCount = 0;
         $cancelledStatusId = BonusStatus::cancelledId();
 
-        if (!$cancelledStatusId) {
+        if (! $cancelledStatusId) {
             \Illuminate\Support\Facades\Log::error('BonusService: cancelled status not found');
+
             return 0;
         }
 
@@ -641,18 +347,12 @@ class BonusService
         return $cancelledCount;
     }
 
-
-
     /**
      * Проверить и обновить доступность бонуса для договора.
      *
      * Бонус становится доступным к выплате когда выполнены ОБА условия:
      * - is_contract_completed: Статус договора = 'completed' (Выполнен)
      * - is_partner_paid: Статус оплаты партнёром = 'paid' (Оплачено)
-     *
-     * @param Contract $contract
-     * @param Bonus $bonus
-     * @return void
      */
     private function checkAndUpdateContractBonusAvailability(Contract $contract, Bonus $bonus): void
     {
@@ -662,10 +362,10 @@ class BonusService
         }
 
         // Загружаем связи если не загружены
-        if (!$contract->relationLoaded('status')) {
+        if (! $contract->relationLoaded('status')) {
             $contract->load('status');
         }
-        if (!$contract->relationLoaded('partnerPaymentStatus')) {
+        if (! $contract->relationLoaded('partnerPaymentStatus')) {
             $contract->load('partnerPaymentStatus');
         }
 
@@ -697,19 +397,10 @@ class BonusService
      * - Договор активен (is_active = true)
      *
      * Обновляет ВСЕ бонусы договора (агентский + кураторский + реферальный).
-     *
-     * @param Contract $contract
-     * @return void
      */
     public function handleContractActiveChange(Contract $contract): void
     {
-        // Получаем все бонусы договора
-        $bonuses = $contract->bonuses;
-
-        foreach ($bonuses as $bonus) {
-            // Проверяем оба условия для доступности бонуса
-            $this->checkAndUpdateContractBonusAvailability($contract, $bonus);
-        }
+        app(BonusAccrualService::class)->sync($contract);
     }
 
     /**
@@ -726,31 +417,15 @@ class BonusService
      *
      * Обновляет ВСЕ бонусы заказа (агентский + кураторский + реферальный).
      *
-     * @param Order $order
-     * @param string $newStatusSlug
-     * @return void
+     * @param  string  $newStatusSlug
      */
-    public function handleOrderStatusChange(Order $order, string $newStatusSlug): void
+    public function handleOrderStatusChange(Order $order, string $status): void
     {
-        // Статусы, при которых бонусы аннулируются
-        $cancellingStatuses = ['returned'];
-
-        // Если статус "Возврат" — аннулируем все бонусы
-        if (in_array($newStatusSlug, $cancellingStatuses)) {
-            $this->cancelBonusesForOrder($order);
-            return;
-        }
-
-        // Для остальных статусов — восстанавливаем и обновляем
-        $this->restoreAndUpdateOrderBonuses($order, $newStatusSlug);
+        app(BonusAccrualService::class)->sync($order);
     }
 
     /**
      * Восстановить аннулированные бонусы заказа и обновить их доступность.
-     *
-     * @param Order $order
-     * @param string $statusSlug
-     * @return void
      */
     private function restoreAndUpdateOrderBonuses(Order $order, string $statusSlug): void
     {
@@ -792,7 +467,6 @@ class BonusService
      *
      * Аннулируются только невыплаченные бонусы (без paid_at).
      *
-     * @param Order $order
      * @return int Количество аннулированных бонусов
      */
     public function cancelBonusesForOrder(Order $order): int
@@ -800,8 +474,9 @@ class BonusService
         $cancelledCount = 0;
         $cancelledStatusId = BonusStatus::cancelledId();
 
-        if (!$cancelledStatusId) {
+        if (! $cancelledStatusId) {
             \Illuminate\Support\Facades\Log::error('BonusService: cancelled status not found');
+
             return 0;
         }
 
@@ -822,8 +497,6 @@ class BonusService
         return $cancelledCount;
     }
 
-
-
     /**
      * Обработать изменение is_active для заказа.
      *
@@ -831,43 +504,14 @@ class BonusService
      * Бонус доступен к выплате если заказ доставлен и активен.
      *
      * Обновляет ВСЕ бонусы заказа (агентский + кураторский + реферальный).
-     *
-     * @param Order $order
-     * @return void
      */
     public function handleOrderActiveChange(Order $order): void
     {
-        // Получаем все бонусы заказа
-        $bonuses = $order->bonuses;
-
-        foreach ($bonuses as $bonus) {
-            // Не трогаем уже оплаченные бонусы
-            if ($bonus->paid_at !== null) {
-                continue;
-            }
-
-            if ($order->is_active) {
-                // Заказ стал активным - проверяем только статус доставки
-                $orderStatus = $order->status;
-                $isOrderDelivered = $orderStatus && $orderStatus->slug === 'delivered';
-
-                if ($isOrderDelivered) {
-                    $this->markBonusAsAvailable($bonus);
-                }
-            } else {
-                // Заказ стал неактивным - очищаем available_at
-                if ($bonus->available_at !== null) {
-                    $this->revertBonusToAccrued($bonus);
-                }
-            }
-        }
+        app(BonusAccrualService::class)->sync($order);
     }
 
     /**
      * Получить ID агента из проекта.
-     *
-     * @param string $projectId
-     * @return int|null
      */
     private function getAgentIdFromProject(string $projectId): ?int
     {
@@ -896,9 +540,6 @@ class BonusService
 
     /**
      * Получить ID куратора из проекта.
-     *
-     * @param string $projectId
-     * @return int|null
      */
     private function getCuratorIdFromProject(string $projectId): ?int
     {
@@ -920,9 +561,7 @@ class BonusService
      *
      * Учитывает только заявки со статусом 'requested' или 'approved' (не выплаченные).
      *
-     * @param int $userId
-     * @param string|null $requesterType Тип запрашивающего (agent, curator)
-     * @return float
+     * @param  string|null  $requesterType  Тип запрашивающего (agent, curator)
      */
     public function getRequestedPaymentsAmount(int $userId, ?string $requesterType = null): float
     {
@@ -946,7 +585,7 @@ class BonusService
      * Аннулируются только невыплаченные бонусы (без paid_at).
      * Бонусы всех договоров и заказов проекта получают статус 'cancelled'.
      *
-     * @param string $projectId ID проекта
+     * @param  string  $projectId  ID проекта
      * @return int Количество аннулированных бонусов
      */
     public function cancelBonusesForProject(string $projectId): int
@@ -954,8 +593,9 @@ class BonusService
         $cancelledCount = 0;
         $cancelledStatusId = BonusStatus::cancelledId();
 
-        if (!$cancelledStatusId) {
+        if (! $cancelledStatusId) {
             \Illuminate\Support\Facades\Log::error('BonusService: cancelled status not found');
+
             return 0;
         }
 
@@ -972,7 +612,7 @@ class BonusService
             ->toArray();
 
         // Аннулируем все бонусы договоров (которые ещё не выплачены)
-        if (!empty($contractIds)) {
+        if (! empty($contractIds)) {
             $contractBonuses = Bonus::whereIn('contract_id', $contractIds)
                 ->whereNull('paid_at')
                 ->get();
@@ -985,7 +625,7 @@ class BonusService
         }
 
         // Аннулируем все бонусы заказов (которые ещё не выплачены)
-        if (!empty($orderIds)) {
+        if (! empty($orderIds)) {
             $orderBonuses = Bonus::whereIn('order_id', $orderIds)
                 ->whereNull('paid_at')
                 ->get();
@@ -1011,7 +651,7 @@ class BonusService
      * Восстанавливает бонусы в статус pending и пересчитывает их доступность
      * на основе текущих статусов договоров и заказов.
      *
-     * @param string $projectId ID проекта
+     * @param  string  $projectId  ID проекта
      * @return int Количество восстановленных бонусов
      */
     public function restoreBonusesForProject(string $projectId): int
@@ -1020,8 +660,9 @@ class BonusService
         $cancelledStatusId = BonusStatus::cancelledId();
         $pendingStatusId = BonusStatus::pendingId();
 
-        if (!$cancelledStatusId || !$pendingStatusId) {
+        if (! $cancelledStatusId || ! $pendingStatusId) {
             \Illuminate\Support\Facades\Log::error('BonusService: status IDs not found');
+
             return 0;
         }
 
@@ -1095,12 +736,14 @@ class BonusService
      * Вызывается при переходе проекта из статуса "Принят куратором" в "Новый проект".
      * Удаляются только невыплаченные кураторские бонусы.
      *
-     * @param string $projectId ID проекта
+     * @param  string  $projectId  ID проекта
      * @return int Количество удалённых бонусов
      */
     public function removeCuratorBonusesForProject(string $projectId): int
     {
         $removedCount = 0;
+        $project = \App\Models\Project::findOrFail($projectId);
+        FinancialLedger::assertUncommitted($project->financialBonuses()->where('recipient_type', Bonus::RECIPIENT_CURATOR));
 
         // Получаем все договоры проекта
         $contractIds = DB::table('contracts')
@@ -1115,7 +758,7 @@ class BonusService
             ->toArray();
 
         // Удаляем кураторские бонусы договоров (которые ещё не выплачены)
-        if (!empty($contractIds)) {
+        if (! empty($contractIds)) {
             $contractBonusesDeleted = Bonus::whereIn('contract_id', $contractIds)
                 ->where('recipient_type', Bonus::RECIPIENT_CURATOR)
                 ->whereNull('paid_at')
@@ -1124,7 +767,7 @@ class BonusService
         }
 
         // Удаляем кураторские бонусы заказов (которые ещё не выплачены)
-        if (!empty($orderIds)) {
+        if (! empty($orderIds)) {
             $orderBonusesDeleted = Bonus::whereIn('order_id', $orderIds)
                 ->where('recipient_type', Bonus::RECIPIENT_CURATOR)
                 ->whereNull('paid_at')
@@ -1147,8 +790,8 @@ class BonusService
      * Создаёт кураторские бонусы для всех активных договоров и заказов,
      * у которых ещё нет кураторского бонуса.
      *
-     * @param string $projectId ID проекта
-     * @param int $curatorId ID куратора
+     * @param  string  $projectId  ID проекта
+     * @param  int  $curatorId  ID куратора
      * @return int Количество созданных бонусов
      */
     public function createCuratorBonusesForProject(string $projectId, int $curatorId): int
@@ -1166,7 +809,7 @@ class BonusService
                 ->where('recipient_type', Bonus::RECIPIENT_CURATOR)
                 ->first();
 
-            if (!$existingBonus) {
+            if (! $existingBonus) {
                 $bonus = $this->createCuratorBonusForContractWithCurator($contract, $curatorId);
                 if ($bonus) {
                     $createdCount++;
@@ -1191,7 +834,7 @@ class BonusService
                 ->where('recipient_type', Bonus::RECIPIENT_CURATOR)
                 ->first();
 
-            if (!$existingBonus) {
+            if (! $existingBonus) {
                 $bonus = $this->createCuratorBonusForOrderWithCurator($order, $curatorId);
                 if ($bonus) {
                     $createdCount++;
@@ -1216,10 +859,6 @@ class BonusService
 
     /**
      * Создать бонус куратора для договора с указанным куратором.
-     *
-     * @param Contract $contract
-     * @param int $curatorId
-     * @return Bonus|null
      */
     public function createCuratorBonusForContractWithCurator(Contract $contract, int $curatorId): ?Bonus
     {
@@ -1246,10 +885,6 @@ class BonusService
 
     /**
      * Создать бонус куратора для заказа с указанным куратором.
-     *
-     * @param Order $order
-     * @param int $curatorId
-     * @return Bonus|null
      */
     public function createCuratorBonusForOrderWithCurator(Order $order, int $curatorId): ?Bonus
     {
@@ -1277,4 +912,3 @@ class BonusService
         ]);
     }
 }
-

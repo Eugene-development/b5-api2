@@ -6,13 +6,34 @@ use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\MorphToMany;
 
 class Project extends Model
 {
-    use HasFactory, HasUlids;
+    use \App\Models\Concerns\HasFinancialTransactions, HasFactory, HasUlids;
+
+    protected static function booted(): void
+    {
+        static::saving(function ($project) {
+            if ($project->exists && $project->isDirty('user_id') && $project->financialBonuses()->exists()) {
+                throw new \App\Exceptions\FinancialException('Нельзя менять агента проекта с начисленными бонусами.');
+            }
+        });
+        static::deleting(function ($project) {
+            \App\Services\FinancialLedger::assertUncommitted($project->financialBonuses());
+            $project->financialBonuses()->delete();
+        });
+    }
+
+    public function financialBonuses()
+    {
+        return Bonus::where(function ($q) {
+            $q->whereIn('contract_id', $this->contracts()->select('id'))
+                ->orWhereIn('order_id', $this->orders()->select('id'));
+        });
+    }
 
     /**
      * Indicates if the IDs are auto-incrementing.
@@ -87,9 +108,9 @@ class Project extends Model
     public function users(): BelongsToMany
     {
         return $this->belongsToMany(User::class, 'project_user', 'project_id', 'user_id')
-                    ->using(ProjectUser::class)
-                    ->withPivot('role')
-                    ->withTimestamps();
+            ->using(ProjectUser::class)
+            ->withPivot('role')
+            ->withTimestamps();
     }
 
     /**
@@ -98,10 +119,10 @@ class Project extends Model
     public function curator(): BelongsToMany
     {
         return $this->belongsToMany(User::class, 'project_user', 'project_id', 'user_id')
-                    ->using(ProjectUser::class)
-                    ->wherePivot('role', ProjectUser::ROLE_CURATOR)
-                    ->withPivot('role')
-                    ->withTimestamps();
+            ->using(ProjectUser::class)
+            ->wherePivot('role', ProjectUser::ROLE_CURATOR)
+            ->withPivot('role')
+            ->withTimestamps();
     }
 
     /**
@@ -110,10 +131,10 @@ class Project extends Model
     public function designers(): BelongsToMany
     {
         return $this->belongsToMany(User::class, 'project_user', 'project_id', 'user_id')
-                    ->using(ProjectUser::class)
-                    ->wherePivot('role', ProjectUser::ROLE_DESIGNER)
-                    ->withPivot('role')
-                    ->withTimestamps();
+            ->using(ProjectUser::class)
+            ->wherePivot('role', ProjectUser::ROLE_DESIGNER)
+            ->withPivot('role')
+            ->withTimestamps();
     }
 
     /**
@@ -122,10 +143,10 @@ class Project extends Model
     public function managers(): BelongsToMany
     {
         return $this->belongsToMany(User::class, 'project_user', 'project_id', 'user_id')
-                    ->using(ProjectUser::class)
-                    ->wherePivot('role', ProjectUser::ROLE_MANAGER)
-                    ->withPivot('role')
-                    ->withTimestamps();
+            ->using(ProjectUser::class)
+            ->wherePivot('role', ProjectUser::ROLE_MANAGER)
+            ->withPivot('role')
+            ->withTimestamps();
     }
 
     /**
