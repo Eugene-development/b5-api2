@@ -150,6 +150,15 @@ class User extends Authenticatable implements JWTSubject
     }
 
     /**
+     * Password resets rotate remember_token to revoke earlier JWT sessions.
+     * Only its digest is exposed in the token, never the remember token itself.
+     */
+    public function getJWTSessionVersion(): string
+    {
+        return hash('sha256', (string) $this->getRememberToken());
+    }
+
+    /**
      * Return a key value array, containing any custom claims to be added to the JWT.
      *
      * @return array
@@ -157,6 +166,7 @@ class User extends Authenticatable implements JWTSubject
     public function getJWTCustomClaims()
     {
         return [
+            'session_version' => $this->getJWTSessionVersion(),
             'email' => $this->email,
             'name' => $this->name,
             'status_id' => $this->status_id,
